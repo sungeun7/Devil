@@ -1,0 +1,3801 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>악마키우기</title>
+  <style>
+    :root {
+      --blood: #c41e3a;
+      --gold: #ffd166;
+      --void: #120814;
+      --panel: rgba(18, 8, 20, 0.86);
+      --line: #5c1a28;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #070308;
+      color: #f6e6d8;
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #app {
+      width: 100%; height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(ellipse at 50% 0%, #3a1020 0%, #070308 62%);
+    }
+    #stage {
+      position: relative;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      background: #1a0a1f;
+      box-shadow: 0 0 80px rgba(196, 30, 58, 0.25);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+    .hidden { display: none !important; }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    #hud { z-index: 2; }
+    .topbar {
+      position: absolute;
+      top: 10px; left: 12px; right: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 2px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 12px;
+      box-shadow: 0 6px 0 #2a0b14;
+    }
+    .name-line {
+      font-size: 18px;
+      letter-spacing: -0.3px;
+    }
+    .name-line b { color: var(--gold); }
+    .stats {
+      display: flex;
+      gap: 14px;
+      margin-top: 4px;
+      font-size: 13px;
+      color: #d7c4b4;
+    }
+    .stats span em {
+      font-style: normal;
+      color: #fff;
+      font-weight: 700;
+    }
+    .right-stats { text-align: right; min-width: 220px; }
+    .xp-wrap, .hp-wrap {
+      margin-top: 6px;
+      width: 240px;
+      height: 10px;
+      background: #2a1520;
+      border: 1px solid #6a3040;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .hp-wrap { width: 180px; margin-left: auto; height: 12px; }
+    #xpFill { height: 100%; width: 0%; background: linear-gradient(90deg, #7b2dbe, #ffd166); }
+    #hpFill { height: 100%; width: 100%; background: linear-gradient(90deg, #7a1020, #e23b4a); transition: width 0.12s linear; }
+    #hpFill.mid { background: linear-gradient(90deg, #7a4a10, #ffb347); }
+    #hpFill.low { background: linear-gradient(90deg, #5a1020, #ff4d4d); }
+    #duelLabel { color: #ff9ecd; font-weight: 800; }
+    .xp-label { font-size: 11px; margin-top: 3px; color: #c9b4c8; }
+    #skillBar {
+      position: absolute;
+      left: 50%;
+      bottom: 12px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+    .skill {
+      width: 74px;
+      height: 86px;
+      background: #1a0d14;
+      border: 2px solid #6a2a38;
+      border-radius: 10px;
+      color: #f3ddd0;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      font-family: inherit;
+    }
+    .skill:hover { border-color: var(--gold); }
+    .skill.locked { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.7); }
+    .skill.active-on { border-color: #49d17c; box-shadow: 0 0 12px rgba(73, 209, 124, 0.4); }
+    .skill .key {
+      position: absolute; top: 4px; left: 6px;
+      font-size: 10px; color: #ffd166;
+    }
+    .skill .ico { font-size: 20px; margin-top: 16px; }
+    .skill .sn { font-size: 10px; font-weight: 700; padding: 0 2px; }
+    .skill .cd {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800; color: #fff;
+    }
+    #toggles {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: auto;
+    }
+    #toggles button {
+      pointer-events: auto;
+      background: var(--panel);
+      color: #f6e6d8;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .screen {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(6, 2, 8, 0.78);
+      pointer-events: auto;
+    }
+    .screen.hidden { display: none; }
+    .card {
+      width: min(560px, 92%);
+      background: linear-gradient(180deg, #2a1018, #14080d);
+      border: 3px solid #8a2438;
+      border-radius: 18px;
+      padding: 28px 30px 24px;
+      text-align: center;
+      box-shadow: 0 18px 0 #3a0d16, 0 0 60px rgba(196,30,58,0.25);
+    }
+    .logo {
+      font-size: 52px;
+      font-weight: 900;
+      color: #ff3b5c;
+      text-shadow: 0 4px 0 #5a0012, 0 0 24px rgba(255, 59, 92, 0.45);
+      letter-spacing: -1px;
+    }
+    .logo.sub { font-size: 36px; }
+    .tag {
+      margin-top: 6px;
+      color: var(--gold);
+      font-size: 15px;
+    }
+    .blurb {
+      margin: 16px 0 18px;
+      color: #dcc7bb;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+    .card input {
+      width: 70%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 2px solid #6a2a38;
+      background: #1a0a10;
+      color: #fff;
+      font-size: 16px;
+      text-align: center;
+      font-family: inherit;
+    }
+    .row { margin-top: 14px; display: flex; gap: 8px; justify-content: center; }
+    .card button, .announce button {
+      background: #c41e3a;
+      color: #fff;
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      box-shadow: 0 4px 0 #6a1020;
+    }
+    .card button.ghost {
+      background: #3a2430;
+      box-shadow: 0 4px 0 #1a1016;
+    }
+    .hint { margin-top: 14px; font-size: 12px; color: #b9a194; line-height: 1.5; }
+    .best {
+      margin-top: 14px;
+      padding: 10px 12px;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid #6a2a38;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #e8d4c8;
+    }
+    .best b { color: var(--gold); }
+    .best .empty { color: #9a8078; }
+    #announce {
+      position: absolute;
+      left: 50%; top: 22%;
+      transform: translateX(-50%);
+      z-index: 6;
+      pointer-events: none;
+      text-align: center;
+      min-width: 320px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #announce.show { opacity: 1; }
+    #announce .t {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--gold);
+      text-shadow: 0 3px 0 #4a3000;
+    }
+    #announce .s {
+      margin-top: 6px;
+      font-size: 15px;
+      color: #ffe8d8;
+    }
+    #toast {
+      position: absolute;
+      left: 12px;
+      bottom: 112px;
+      max-width: 340px;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #f0d8c8;
+    }
+    #comboHud {
+      position: absolute;
+      left: 16px;
+      top: 44%;
+      z-index: 3;
+      pointer-events: none;
+      font-size: 32px;
+      font-weight: 900;
+      color: #ffd166;
+      text-shadow: 0 4px 0 #4a2800, 0 0 16px rgba(255, 180, 40, 0.45);
+      letter-spacing: -1px;
+    }
+    #eventHud {
+      position: absolute;
+      top: 88px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      pointer-events: none;
+      background: rgba(48, 8, 20, 0.9);
+      border: 2px solid #ffd166;
+      border-radius: 99px;
+      padding: 6px 16px;
+      font-weight: 800;
+      color: #ffd166;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    #threatHud {
+      position: absolute;
+      top: 126px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      pointer-events: none;
+      background: rgba(72, 8, 16, 0.94);
+      border: 2px solid #ff4d4d;
+      border-radius: 99px;
+      padding: 6px 16px;
+      font-weight: 900;
+      color: #ff8a8a;
+      font-size: 14px;
+      white-space: nowrap;
+      box-shadow: 0 0 18px rgba(196, 30, 58, 0.45);
+    }
+    #jobHud {
+      position: absolute;
+      top: 164px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      pointer-events: none;
+      background: rgba(12, 28, 48, 0.92);
+      border: 2px solid #7ec8ff;
+      border-radius: 99px;
+      padding: 6px 16px;
+      font-weight: 800;
+      color: #c8e8ff;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    #placeHud {
+      position: absolute;
+      left: 16px;
+      top: 196px;
+      z-index: 3;
+      pointer-events: none;
+      font-size: 13px;
+      font-weight: 800;
+      color: #ffd166;
+      text-shadow: 0 2px 0 #3a1800;
+    }
+    #rankHud {
+      position: absolute;
+      left: 16px;
+      top: 214px;
+      z-index: 3;
+      pointer-events: none;
+      font-size: 12px;
+      font-weight: 700;
+      color: #ffb4c8;
+      text-shadow: 0 2px 0 #3a1020;
+      max-width: 280px;
+      line-height: 1.35;
+    }
+    #internHud {
+      position: absolute;
+      left: 16px;
+      top: 232px;
+      z-index: 3;
+      pointer-events: none;
+      font-size: 12px;
+      font-weight: 800;
+      color: #c8e8ff;
+      text-shadow: 0 2px 0 #102038;
+    }
+    #choiceHud {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(8, 0, 10, 0.55);
+      pointer-events: auto;
+    }
+    #choiceHud.show { display: flex; }
+    .choice-card {
+      background: rgba(22, 8, 16, 0.96);
+      border: 2px solid #ffd166;
+      border-radius: 14px;
+      padding: 18px 22px;
+      min-width: 340px;
+      max-width: 480px;
+      text-align: center;
+    }
+    .choice-card .q {
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff4e8;
+      margin-bottom: 14px;
+      line-height: 1.4;
+    }
+    .choice-card .row button {
+      min-width: 140px;
+    }
+    .choice-card .hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #c8b0a0;
+    }
+    .choice-card .timer {
+      margin-top: 8px;
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffd166;
+    }
+    .choice-card .timer.warn { color: #ff6b6b; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="stage">
+      <canvas id="game" width="1280" height="720"></canvas>
+      <div id="hud" class="overlay hidden">
+        <div class="topbar">
+          <div class="panel">
+            <div class="name-line" id="nameLine">[햇병아리 악마] 이름</div>
+            <div class="stats">
+              <span>악마력 <em id="powEl">0</em></span>
+              <span>명성 <em id="fameEl">0</em></span>
+              <span>처치 <em id="killEl">0</em></span>
+            </div>
+            <div class="xp-wrap"><div id="xpFill"></div></div>
+            <div class="xp-label" id="xpLabel">Lv.1  0/40</div>
+            <div class="xp-label" id="rankLabel">1등급 · 다음 40</div>
+            <div class="xp-label" id="bestHud">최고 0점</div>
+          </div>
+          <div class="panel right-stats">
+            <div>체력</div>
+            <div class="hp-wrap"><div id="hpFill"></div></div>
+            <div class="xp-label" id="hpLabel">100/100</div>
+            <div class="xp-label" id="candyLabel">사탕 0 · Q 먹기</div>
+            <div class="xp-label" id="huntLabel">자동사냥 OFF</div>
+            <div class="xp-label" id="duelLabel">결투 0:40</div>
+          </div>
+        </div>
+        <div id="skillBar"></div>
+        <div id="toggles">
+          <button id="pauseBtn">일시정지 (Esc)</button>
+          <button id="huntBtn">자동사냥: OFF</button>
+          <button id="eatBtn">사탕 먹기 (Q)</button>
+          <button id="resetBtn">새 게임</button>
+        </div>
+        <div id="toast"></div>
+        <div id="comboHud" class="hidden"></div>
+        <div id="eventHud" class="hidden"></div>
+        <div id="threatHud" class="hidden"></div>
+        <div id="jobHud" class="hidden"></div>
+        <div id="placeHud"></div>
+        <div id="rankHud"></div>
+        <div id="internHud" class="hidden"></div>
+      </div>
+      <div id="choiceHud">
+        <div class="choice-card">
+          <div class="q" id="choiceQ"></div>
+          <div class="row">
+            <button id="choiceA"></button>
+            <button id="choiceB"></button>
+          </div>
+          <div class="hint">1 또는 2 키로도 고를 수 있습니다</div>
+          <div class="timer" id="choiceTimer">자동선택 5초</div>
+        </div>
+      </div>
+      <div id="announce"><div class="t" id="anTitle"></div><div class="s" id="anSub"></div></div>
+      <div id="titleScreen" class="screen">
+        <div class="card">
+          <div class="logo">악마키우기</div>
+          <div class="tag">민원은 곧 명성입니다</div>
+          <p class="blurb">
+            한 판이 깁니다. 근무 시즌이 오를수록 동네가 험해지고, 레벨마다 계약이 쌓입니다.<br>
+            바나나·단톡·택배 가로채기로 버티세요. 최고 등급까지는 한참입니다.<br>
+            정예·보스·결투는 아픕니다. 지면 신입부터입니다.
+          </p>
+          <input id="nameInput" maxlength="10" placeholder="악마 이름" value="김악마" />
+          <div class="row">
+            <button id="startBtn">지옥 출근</button>
+            <button id="continueBtn" class="ghost hidden">이어하기</button>
+          </div>
+          <div class="best" id="bestBoard"><span class="empty">아직 민원 기록이 없습니다.</span></div>
+          <div class="hint">
+            이동: WASD / 클릭 · 장난: 1~8 · 사탕: Q · 자동사냥: Space · 일시정지: Esc<br>
+            편의점 회복 · 나무 사과 · 오토바이 택배 가로채기
+          </div>
+        </div>
+      </div>
+      <div id="pauseScreen" class="screen hidden">
+        <div class="card">
+          <div class="logo sub">야근 중지</div>
+          <p class="blurb">악마도 쉬는 줄 알았는데, 그냥 일시정지입니다.</p>
+          <div class="row">
+            <button id="resumeBtn">다시 민원 넣기</button>
+            <button id="toTitleBtn" class="ghost">타이틀로</button>
+          </div>
+        </div>
+      </div>
+      <div id="deadScreen" class="screen hidden">
+        <div class="card">
+          <div class="logo sub" id="deadTitle">기절했다</div>
+          <p class="blurb" id="deadMsg">민원에 치여 쓰러졌습니다. 하지만 악마는 퇴근이 없습니다.</p>
+          <div class="best" id="deadBest"></div>
+          <div class="row"><button id="reviveBtn">지옥 인턴십으로 복직</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+(function () {
+  const W = 1280, H = 720;
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const SAVE_KEY = "akma-raise-save-v1";
+  const BEST_KEY = "akma-raise-best-v1";
+
+  const TITLES = [
+    { fame: 0, name: "햇병아리 악마", gag: "아직 민원 한 건도 못 넣었습니다.", bonus: {} },
+    { fame: 70, name: "문방구 불량", gag: "샤프심을 바닥에 뿌린 전적이 있습니다.", bonus: { extraPeel: 1 } },
+    { fame: 180, name: "놀이터 전설", gag: "미끄럼틀이 증인입니다.", bonus: { comboBonus: 0.35 } },
+    { fame: 360, name: "택배 가로채기", gag: "주소는 비슷했습니다. 양심은 아닙니다.", bonus: { mag: 14 } },
+    { fame: 620, name: "아파트 소음민원", gag: "축하합니다. 민원 접수가 폭주합니다.", bonus: { mockExtra: 0.9 } },
+    { fame: 1000, name: "층간소음 프로", gag: "야간에도 발이 빨라집니다.", bonus: { aoe: 1.08 } },
+    { fame: 1550, name: "지역뉴스 단골", gag: "앵커가 이름을 외웁니다. 발음은 틀립니다.", bonus: { fameMul: 1.05 } },
+    { fame: 2300, name: "구청 단골손님", gag: "창구 번호표를 외웁니다.", bonus: { candyCap: 3 } },
+    { fame: 3300, name: "지옥 인턴", gag: "수습기간 3일 연장. 이유는 성과 과다.", bonus: { intern: true } },
+    { fame: 4600, name: "지옥 정규직", gag: "4대보험은 악마력으로 납부합니다.", bonus: { huntSpd: 1.06 } },
+    { fame: 6400, name: "대악마 지망생", gag: "명함만 대악마, 아직 사원입니다.", bonus: { atk: 1.05, heal: 1.15 } },
+    { fame: 8800, name: "대악마 수습", gag: "평가표에 장난기만 가득합니다.", bonus: { hp: 16, heal: 1.18, candyCap: 3 } },
+    { fame: 12000, name: "최종보스 아님", gag: "중간보스 자리도 대기 중입니다.", bonus: { ultCd: 0.9 } },
+    { fame: 16500, name: "중간보스 대기", gag: "대기표 뽑고 민원을 넣습니다.", bonus: { eliteTaken: 0.94 } },
+    { fame: 22500, name: "인류멸망 알바생", gag: "시급은 지옥 포인트로 지급됩니다.", bonus: { xpMul: 1.08 } },
+    { fame: 30000, name: "지옥본사 대리", gag: "회의록에 장난만 적힙니다.", bonus: { atk: 1.05, mag: 12 } },
+    { fame: 40000, name: "지옥본사 이사", gag: "회의는 단톡으로 대체합니다.", bonus: { extraHop: 2, heal: 1.12 } },
+    { fame: 54000, name: "전설의 민원왕", gag: "이 동네 민원 양식에 얼굴이 박혀 있습니다.", bonus: { cd: 0.92 } },
+    { fame: 72000, name: "멸망 프로젝트 팀장", gag: "일정은 밀렸지만 민원은 밀리지 않습니다.", bonus: { atk: 1.08, hp: 22 } },
+    { fame: 95000, name: "지옥 CEO 후보", gag: "면접은 아직입니다. 이력서만 두껍습니다.", bonus: { eliteTaken: 0.9, heal: 1.15, cd: 0.92 } }
+  ];
+
+  const SKILLS = [
+    { id: "scratch", name: "할퀴기", ico: "爪", key: "1", level: 1, cd: 0.38, auto: true, desc: "기본 근접" },
+    { id: "peel", name: "바나나껍질", ico: "🍌", key: "2", level: 1, cd: 5.8, auto: true, desc: "미끄럼 함정" },
+    { id: "chat", name: "단톡폭발", ico: "💬", key: "3", level: 4, cd: 5.4, auto: true, desc: "카톡 연쇄" },
+    { id: "sneeze", name: "재채기화염", ico: "♨", key: "4", level: 8, cd: 2.6, auto: true, desc: "전방 화염" },
+    { id: "mock", name: "조롱하기", ico: "♪", key: "5", level: 12, cd: 4.2, auto: true, desc: "괴롭히기 도트" },
+    { id: "overtime", name: "지옥야근", ico: "▣", key: "6", level: 17, cd: 7.0, auto: true, desc: "주변 광역" },
+    { id: "complaint", name: "민원폭탄", ico: "✉", key: "7", level: 23, cd: 8.5, auto: true, desc: "다수 타격" },
+    { id: "gimbap", name: "삼각김밥", ico: "▲", key: "8", level: 30, cd: 24, auto: false, desc: "전체 궁극기" }
+  ];
+
+  const CONTRACTS = [
+    { id: "claw", name: "날카로운 발톱", desc: "공격력 +14%", apply: { atk: 1.14 } },
+    { id: "thick", name: "두꺼운 양심", desc: "체력 상한 +22, 회복 +10%", apply: { hp: 22, heal: 1.1 } },
+    { id: "magnet", name: "탐욕의 자석", desc: "아이템 흡수 강화", apply: { mag: 28 } },
+    { id: "sweet", name: "사탕 중독", desc: "사탕 회복 +25%, 용량 +4", apply: { heal: 1.25, candyCap: 4 } },
+    { id: "sprint", name: "민원 질주", desc: "이동·자동사냥 속도 +10%", apply: { huntSpd: 1.1 } },
+    { id: "combo", name: "연쇄 민원", desc: "콤보 유지가 길어집니다", apply: { comboBonus: 0.8 } },
+    { id: "cool", name: "쿨한 퇴근", desc: "스킬 쿨타임 -12%", apply: { cd: 0.88 } },
+    { id: "armor", name: "서류 방패", desc: "정예·보스 피해 -12%", apply: { eliteTaken: 0.88 } },
+    { id: "xp", name: "야근 수당", desc: "경험치 +15%", apply: { xpMul: 1.15 } },
+    { id: "fame", name: "뉴스 노출", desc: "명성 +12%", apply: { fameMul: 1.12 } },
+    { id: "peelpro", name: "바나나 도매", desc: "껍질 함정 +1", apply: { extraPeel: 1 } },
+    { id: "chatpro", name: "단톡 관리자", desc: "카톡 전파 +2", apply: { extraHop: 2 } }
+  ];
+
+  const CHAT_LINES = [
+    "읽씹 금지입니다", "공지 확인하세요", "이 단톡 나가기 금지",
+    "민원 공유합니다", "점장님 보세요", "위치 공유됨",
+    "사진 올리지 마세요", "야근 투표합니다"
+  ];
+  const INTERN_LINES = [
+    "평가표 잘 부탁드려요", "이것도 산재인가요", "수습인데 왜 싸움",
+    "커피는 제가 살게요", "명함이 아직 임시입니다"
+  ];
+
+  const ENEMIES = [
+    { id: "alba", name: "편의점 알바", color: "#3d7ea6", minLv: 1, hp: 28, speed: 42, fame: 3, pow: 4, xp: 7, behave: "flee",
+      quotes: ["계산... 어, 이거 얼마였지?", "삼각김밥이 미끄러졌어요", "실수 실수, 고의 아님!"],
+      last: "교대 5분 전인데 제가 넘어졌어요" },
+    { id: "delivery", name: "배달 오토바이", color: "#e07a2f", minLv: 1, hp: 22, speed: 88, fame: 3, pow: 3, xp: 6, behave: "flee",
+      quotes: ["주소가... 여기 맞아요?", "어 떨어뜨렸어요", "벨은 제가 눌렀는데 왜 저예요"],
+      last: "리뷰 별점은... 아 아닌데" },
+    { id: "pt", name: "헬스 PT", color: "#d44d6a", minLv: 4, hp: 48, speed: 62, fame: 5, pow: 6, xp: 10, behave: "charge",
+      quotes: ["하체... 저부터요?", "회원권을 밟아버렸어요", "한 세트 더! 잠깐 숨 가빠요"],
+      last: "근육보다 양심이 먼저 나갔어요" },
+    { id: "cafe", name: "카페 노트북족", color: "#6b5b95", minLv: 2, hp: 26, speed: 30, fame: 4, pow: 4, xp: 8, behave: "wander",
+      quotes: ["저장... 했나?", "커피가 키보드로", "마감이 내일인데 오늘은 장난감"],
+      last: "파일명이 최종_진짜최종_2" },
+    { id: "office", name: "야근 회사원", color: "#4a5568", minLv: 3, hp: 40, speed: 36, fame: 5, pow: 5, xp: 9, behave: "flee",
+      quotes: ["메일 잘못 보냈어요", "칼퇴는... 엘리베이터에서요", "도장 찍다가 손가락"],
+      last: "연차 신청서를 휴지통에" },
+    { id: "walker", name: "강아지 산책러", color: "#2f9e6a", minLv: 3, hp: 24, speed: 50, fame: 4, pow: 4, xp: 7, behave: "flee",
+      quotes: ["이리온... 내가 먼저 달림", "배변 봉투가 바람에", "착하지? 내가?"],
+      last: "목줄을 내 발에 감았어요" },
+    { id: "youtuber", name: "유튜버", color: "#e23d3d", minLv: 5, hp: 36, speed: 55, fame: 7, pow: 6, xp: 11, behave: "curious",
+      quotes: ["실시간인데 넘어짐", "구독은 제가 눌렀어요", "편집은 내일, 오늘은 사고"],
+      last: "조회수는 올랐는데 무릎이" },
+    { id: "resident", name: "민원 넣는 주민", color: "#c9a227", minLv: 6, hp: 34, speed: 40, fame: 8, pow: 5, xp: 11, behave: "charge",
+      quotes: ["민원 넣다가 오타", "층간소음이 저예요?", "법적 대응... 초안 잃어버림"],
+      last: "민원 번호가 제 생일" },
+    { id: "official", name: "시청 공무원", color: "#2c5f8a", minLv: 10, hp: 90, speed: 34, fame: 11, pow: 9, xp: 16, behave: "wander",
+      quotes: ["민원 번호... 몇 번이었죠?", "담당자가 저인데 휴가 찍음", "도장 거꾸로"],
+      last: "공문을 이면지에 출력" },
+    { id: "good", name: "착한 사람", color: "#f0e6d0", minLv: 14, hp: 70, speed: 38, fame: 18, pow: 12, xp: 22, behave: "flee",
+      quotes: ["도와드릴까요? 제가 넘어져도요?", "괜찮으세요? 저요?", "세금 냈는데 영수증 분실"],
+      last: "착한 일 하다가 사고 침" },
+    { id: "student", name: "야자 학생", color: "#5a8fd8", minLv: 7, hp: 32, speed: 58, fame: 8, pow: 5, xp: 12, behave: "flee",
+      quotes: ["보충이 끝났다고요?", "숙제는... 내일", "선생님 오시면 큰일"],
+      last: "출석부에 결석 찍힘" },
+    { id: "ajumma", name: "시장 아줌마", color: "#d45c8a", minLv: 8, hp: 55, speed: 44, fame: 11, pow: 8, xp: 15, behave: "charge",
+      quotes: ["이거 얼마예요!", "덤으로 하나 더", "흥정은 기본입니다"],
+      last: "봉투가 먼저 항복" },
+    { id: "security", name: "아파트 경비", color: "#3a5a48", minLv: 11, hp: 85, speed: 32, fame: 14, pow: 10, xp: 20, behave: "wander",
+      quotes: ["출입증 보여주세요", "택배는 경비실로", "CCTV에 다 나옵니다"],
+      last: "근무교대 시간표 분실" },
+    { id: "influencer", name: "동네 인플루언서", color: "#ff7eb0", minLv: 13, hp: 42, speed: 70, fame: 16, pow: 9, xp: 18, behave: "curious",
+      quotes: ["스토리 올렸어요", "협찬은 언제?", "필터 켜고 싸워요"],
+      last: "좋아요가 먼저 떨어짐" }
+  ];
+
+  const ITEMS = [
+    { id: "soul", name: "알바 영혼", color: "#b388ff", pow: 6, fame: 0, xp: 2, heal: 14 },
+    { id: "candy", name: "지옥 사탕", color: "#ff6b9d", pow: 1, fame: 0, xp: 0, heal: 32 },
+    { id: "card", name: "지옥 포인트카드", color: "#ffd166", pow: 2, fame: 8, xp: 0, heal: 8 },
+    { id: "gimbap", name: "유통기한 지난 삼각김밥", color: "#7cb342", pow: 0, fame: 2, xp: 12, heal: 22 },
+    { id: "dice", name: "지옥 주사위", color: "#ff8a3d", pow: 4, fame: 6, xp: 8, heal: 0, fx: "dice" },
+    { id: "ticket", name: "즉석복권", color: "#ffe08a", pow: 0, fame: 14, xp: 16, heal: 10, fx: "ticket" }
+  ];
+
+  const DEVIL_QUOTES = [
+    "장난인데 왜 진짜로 혼나요",
+    "발 걸렸어. 이득이야",
+    "개구쟁이는 직업입니다",
+    "사고 치고 도망치는 게 핵심",
+    "어... 민원 넣는 거 이거 맞죠?",
+    "양심은 주머니에 넣고 옴",
+    "체력이 달아요. 사탕 주세요",
+    "월례 결투가 두렵습니다. 조금."
+  ];
+
+  const RIVALS = [
+    { id: "rival_park", name: "옆집악마 박민원", color: "#5b8def", skin: "#8eb4e8", shirt: "#1e3a6e", pants: "#121a33", hair: "#0a1428", tail: "#243868", eye: "#c8e4ff",
+      hp: 110, speed: 88, fame: 36, pow: 14, xp: 70,
+      quotes: ["우리 층간소음은 합법 악마력입니다", "택배 대신 저 받으세요", "결투 전에 분리수거 했어요"],
+      last: "이직 공고를 잘못 봤나 봐요" },
+    { id: "rival_overtime", name: "지옥대리 김야근", color: "#7a6a90", skin: "#c9b8d8", shirt: "#3a3048", pants: "#1a1520", hair: "#1a1020", tail: "#403050", eye: "#e0d0ff",
+      hp: 130, speed: 72, fame: 40, pow: 16, xp: 78,
+      quotes: ["결투도 야근 수당 미지급입니다", "회의가 먼저예요", "패자는 신입 연수 8주"],
+      last: "연차는 결투 패배로 소멸" },
+    { id: "rival_influ", name: "인스타악마 인플루", color: "#ff6ba9", skin: "#f0a0c0", shirt: "#8a2048", pants: "#3a1024", hair: "#2a0818", tail: "#6a2040", eye: "#ffd0ea",
+      hp: 100, speed: 100, fame: 44, pow: 12, xp: 66,
+      quotes: ["실시간 결투 좋아요", "필터 켜고 싸워요", "구독자보다 체력이 중요"],
+      last: "스토리는 올렸는데 저는 내려감" },
+    { id: "rival_intern", name: "수습대악마 인턴임", color: "#e0c060", skin: "#e8d090", shirt: "#6a5010", pants: "#3a3008", hair: "#2a2008", tail: "#8a7018", eye: "#fff0a0",
+      hp: 90, speed: 80, fame: 32, pow: 11, xp: 60,
+      quotes: ["수습기간에 결투가 있어요?", "명함은 아직 임시입니다", "이기면 정규직... 아니죠?"],
+      last: "평가표에 패배라고 찍힘" },
+    { id: "rival_store", name: "점장악마 삼각킴", color: "#4aaa6a", skin: "#a0d8b0", shirt: "#1e5a32", pants: "#0e2a18", hair: "#102418", tail: "#245a38", eye: "#c8ffd8",
+      hp: 150, speed: 68, fame: 42, pow: 18, xp: 88,
+      quotes: ["유통기한 지난 결투입니다", "계산대에서 싸워요", "포인트 적립은 패자만"],
+      last: "영수증에 패배 찍힘" }
+  ];
+
+  const DUEL_GAGS = [
+    "심판이 커피 사러 감. 무효 아님",
+    "이 결투는 산재 미적용입니다",
+    "패자는 이력서가 백지입니다",
+    "경험치는 원천징수 후 지급",
+    "관중석에서 민원이 들어옵니다"
+  ];
+
+  const CHAOS = [
+    { id: "chicken", name: "치맥 타임", time: 8, desc: "치킨이 내려옵니다. 체력 충전!" },
+    { id: "blackout", name: "아파트 정전", time: 7, desc: "어두워서 주민이 느려집니다." },
+    { id: "sale", name: "편의점 1+1", time: 9, desc: "아이템이 계산대에서 쏟아집니다." },
+    { id: "live", name: "현장 라이브", time: 10, desc: "처치 명성과 경험치가 두 배!" },
+    { id: "dance", name: "새벽 플래시몹", time: 8, desc: "모두가 춤춥니다. 공격은 그대로." },
+    { id: "rain", name: "삼각김밥 우박", time: 6, desc: "하늘에서 김밥이 떨어집니다." },
+    { id: "audit", name: "세무조사", time: 8, desc: "서류 든 주민이 돌진합니다." },
+    { id: "fever", name: "민원 피버", time: 11, desc: "이속 증가, 콤보가 잘 안 끊깁니다." },
+    { id: "siren", name: "확성기 방송", time: 9, desc: "온 동네가 당신 쪽으로 몰려옵니다." },
+    { id: "ice", name: "빙판 출근길", time: 8, desc: "발이 미끄럽습니다. 이속 감소!" },
+    { id: "refund", name: "환급의 날", time: 7, desc: "하늘에서 포인트가 비처럼 내립니다." },
+    { id: "elevator", name: "엘리베이터 갇힘", time: 6, desc: "모두가 무작위 층으로 튕깁니다." },
+    { id: "kakao", name: "단톡 폭주", time: 8, desc: "카톡이 전염됩니다. 맞으면 명성!" },
+    { id: "cctv", name: "CCTV 단속", time: 9, desc: "멈춰 있으면 명성, 뛰면 과태료." },
+    { id: "recycle", name: "분리수거 검사", time: 10, desc: "노란 아이템이 두 배입니다." }
+  ];
+
+  const DISTRICTS = [
+    { id: "store", name: "골목 편의점", sky0: "#1b0a24", sky1: "#2a1230", store: "24시 편의점",
+      crowd: ["alba", "delivery", "cafe"], elites: ["karen", "lawyer"], bosses: ["hq"],
+      gags: ["점장이 한숨을 쉽니다", "삼각김밥이 미끄러집니다"] },
+    { id: "park", name: "놀이터 앞", sky0: "#102418", sky1: "#1a3024", store: "놀이터 매점",
+      crowd: ["walker", "youtuber", "pt", "student"], elites: ["dojang", "noise"], bosses: ["finalish"],
+      gags: ["미끄럼틀이 증인입니다", "모래가 신발에 들어갑니다"] },
+    { id: "apt", name: "아파트 단지", sky0: "#101428", sky1: "#1c2448", store: "단지 슈퍼",
+      crowd: ["resident", "office", "walker", "security"], elites: ["noise", "wrecker", "landlord"], bosses: ["jang"],
+      gags: ["층간소음이 합법입니다", "엘리베이터는 고장"] },
+    { id: "hall", name: "시청 앞", sky0: "#1a1424", sky1: "#2c2438", store: "청사 매점",
+      crowd: ["official", "office", "good"], elites: ["inspector", "lawyer", "taxman"], bosses: ["hq", "clerk"],
+      gags: ["민원 창구가 줄입니다", "도장이 거꾸로입니다"] },
+    { id: "market", name: "밤시장", sky0: "#241010", sky1: "#3a1c14", store: "야시장 김밥",
+      crowd: ["delivery", "alba", "youtuber", "ajumma"], elites: ["karen", "wrecker"], bosses: ["finalish"],
+      gags: ["호객이 먼저 민원입니다", "야시장 기름 냄새"] },
+    { id: "subway", name: "지하철 출구", sky0: "#0e1520", sky1: "#1a2838", store: "역내 편의점",
+      crowd: ["office", "student", "delivery", "influencer"], elites: ["streamer", "taxman"], bosses: ["ceo"],
+      gags: ["막차가 지나가면 민원이 남습니다", "환승 통로가 미로입니다"] },
+    { id: "school", name: "학교 정문", sky0: "#182418", sky1: "#243828", store: "매점",
+      crowd: ["student", "pt", "youtuber", "walker"], elites: ["dojang", "streamer"], bosses: ["finalish", "clerk"],
+      gags: ["야자가 끝나도 민원은 남습니다", "급식 배식이 지연됩니다"] }
+  ];
+
+  const JOBS = [
+    { id: "kills", title: "민원 처리", kind: "kills", need: 10, time: 24, gag: "몇 명만 처리하면 됩니다. 쉽죠?" },
+    { id: "combo", title: "콤보 유지", kind: "combo", need: 14, time: 22, gag: "콤보 14. 손 놓지 마세요." },
+    { id: "store", title: "편의점 들르기", kind: "store", need: 1, time: 16, gag: "계산대에 얼굴만 비치세요." },
+    { id: "eat", title: "사탕 응급", kind: "eat", need: 2, time: 18, gag: "사탕 두 개. 이빨은 나중에." },
+    { id: "survive", title: "구경꾼 웨이브", kind: "survive", need: 1, time: 16, gag: "16초만 버티면 됩니다." },
+    { id: "loot", title: "노상 줍기", kind: "loot", need: 5, time: 20, gag: "떨어진 거 다섯 개만 줏으세요." },
+    { id: "tree", title: "나무 그늘", kind: "tree", need: 1, time: 14, gag: "왼쪽 나무에 가서 숨 고르세요." },
+    { id: "elite", title: "정예 처리", kind: "elite", need: 1, time: 28, gag: "강한 놈 하나만. 맞으면 아픕니다." },
+    { id: "peel", title: "미끄럼 사고", kind: "peel", need: 4, time: 22, gag: "바나나로 네 명만 넘어뜨리세요." },
+    { id: "chat", title: "단톡 전파", kind: "chat", need: 8, time: 20, gag: "카톡을 여덟 명에게 퍼뜨리세요." },
+    { id: "boss", title: "보스 견제", kind: "boss", need: 1, time: 40, gag: "미니보스를 처리하세요. 서두르세요." },
+    { id: "hijack", title: "택배 가로채기", kind: "hijack", need: 2, time: 24, gag: "오토바이 택배를 두 번 가로채세요." }
+  ];
+
+  const CHOICES = [
+    { id: "parcel", q: "택배 오배송입니다. 이름도 비슷합니다.", a: "내가 갖는다", b: "알바 탓한다",
+      aOk: "사탕과 포인트를 챙겼습니다.", bOk: "알바가 뛰쳐나왔습니다." },
+    { id: "news", q: "지역뉴스 마이크가 코앞에 있습니다.", a: "과장해서 인터뷰", b: "침묵 시위",
+      aOk: "조회수가 명성으로 환전됩니다.", bOk: "침묵은 체력입니다." },
+    { id: "meet", q: "반상회 참석 문자입니다.", a: "과잉 참석", b: "잠수",
+      aOk: "이장이 관심을 갖기 시작했습니다.", bOk: "잠수는 사탕입니다." },
+    { id: "gym", q: "헬스 PT가 무료 체험을 권합니다.", a: "한 세트 받는다", b: "도망친다",
+      aOk: "근육과 이속이 잠시 올랐습니다.", bOk: "도망은 명예입니다. 조금." },
+    { id: "noise", q: "층간소음 합의서를 내밉니다.", a: "도장 찍는다", b: "찢는다",
+      aOk: "합의금 대신 사탕입니다.", bOk: "찢으니 민원이 더 옵니다." },
+    { id: "coupon", q: "배달앱이 쿠폰을 뿌립니다.", a: "전부 쓴다", b: "양심적으로 한 장",
+      aOk: "야근 버프와 김밥이 왔습니다.", bOk: "양심은 명성입니다. 조금." },
+    { id: "cat", q: "길고양이가 삼각김밥을 노립니다.", a: "나눠 준다", b: "내가 먼저",
+      aOk: "고양이가 체력을 빌려줍니다.", bOk: "김밥은 내 것. 고양이는 증인." },
+    { id: "collab", q: "유튜버가 합방하자고 합니다.", a: "카메라 켠다", b: "차단한다",
+      aOk: "조회수 = 명성. 스폰도 옵니다.", bOk: "차단은 평화. 사탕은 덤." },
+    { id: "intern", q: "수습악마가 평가표를 내밉니다.", a: "잘했다고 쓴다", b: "나쁘게 쓴다",
+      aOk: "수습이 더 열심히 때립니다.", bOk: "평가가 무서워 사탕을 바칩니다." },
+    { id: "peelq", q: "마트 바나나가 반값입니다. 껍질만 사도 됩니다.", a: "상자째 산다", b: "양심적으로 한 송이",
+      aOk: "바닥에 함정이 깔립니다.", bOk: "양심은 명성입니다. 조금." }
+  ];
+
+  const SPECIALS = [
+    { id: "gold", name: "황금 알바", color: "#ffd166", hp: 40, speed: 52, fame: 18, pow: 14, xp: 24, behave: "flee",
+      quotes: ["시급이 반짝입니다", "보너스는 현금처럼", "황금 삼각김밥이요"], last: "도금이 벗겨졌어요" },
+    { id: "mayor", name: "시장님", color: "#c9a227", hp: 80, speed: 34, fame: 26, pow: 18, xp: 32, behave: "wander",
+      quotes: ["표는 제가 찍었습니다", "예산이 춤춥니다", "악수할까요? 넘어질 수도"], last: "재선은 다음 판에" },
+    { id: "cat", name: "길고양이", color: "#c9a06a", hp: 18, speed: 96, fame: 6, pow: 3, xp: 9, behave: "flee",
+      quotes: ["야옹... 민원이야옹", "츄르 내놔요옹", "박스 주인이 나"], last: "츄르로 매수됨" },
+    { id: "chick", name: "치킨 50마리", color: "#e07a2f", hp: 44, speed: 70, fame: 14, pow: 10, xp: 18, behave: "charge",
+      quotes: ["양념 or 후라이드", "콜라가 없음", "배달팁 폭등"], last: "무뼈로 변신 실패" },
+    { id: "ghost", name: "야근 유령", color: "#9aa8c8", hp: 50, speed: 60, fame: 20, pow: 12, xp: 22, behave: "flank",
+      quotes: ["칼퇴는 환상입니다", "회의가 저를 따라옵니다", "연차는 유령도 못 씀"], last: "근태기록이 증발함" }
+  ];
+
+  const ELITES = [
+    { id: "karen", name: "진상 손님", color: "#c41e3a", hp: 70, speed: 58, fame: 16, pow: 12, xp: 24, behave: "charge",
+      quotes: ["매니저 부르세요", "리뷰 테러합니다", "서비스가 없네요"], last: "블랙리스트에 제가 올랐어요", dmg: 1.35 },
+    { id: "lawyer", name: "악덕 변호사", color: "#2c2c48", hp: 62, speed: 48, fame: 18, pow: 14, xp: 26, behave: "wander", ranged: true,
+      quotes: ["고소합니다", "내용증명 갑니다", "합의금이요"], last: "수임료를 못 받음", dmg: 1.1 },
+    { id: "dojang", name: "무술 관장", color: "#6a1a2a", hp: 88, speed: 78, fame: 17, pow: 16, xp: 28, behave: "charge",
+      quotes: ["도장 깨기입니다", "한 판 붙죠", "기합!"], last: "허리 디스크가 먼저", dmg: 1.5 },
+    { id: "inspector", name: "구청 감사관", color: "#1a4060", hp: 95, speed: 40, fame: 20, pow: 15, xp: 30, behave: "charge", shield: true,
+      quotes: ["영업정지 검토", "서류 부족입니다", "과태료요"], last: "감사는 내일로 연기", dmg: 1.2 },
+    { id: "wrecker", name: "철거반장", color: "#8a4a20", hp: 100, speed: 70, fame: 19, pow: 18, xp: 30, behave: "charge",
+      quotes: ["이 건물 내일 없어집니다", "해머는 합법입니다", "이사 안 가면 철거"], last: "해머를 놓고 옴", dmg: 1.6 },
+    { id: "noise", name: "층간소음 대장", color: "#c45c20", hp: 78, speed: 86, fame: 18, pow: 15, xp: 27, behave: "charge",
+      quotes: ["뛰기의 달인입니다", "아래층은 제 스피커", "야간 공사 신고합니다"], last: "슬리퍼가 먼저 항복", dmg: 1.4 },
+    { id: "landlord", name: "악덕 임대인", color: "#6a3048", hp: 110, speed: 42, fame: 24, pow: 17, xp: 34, behave: "charge", shield: true,
+      quotes: ["보증금은 없습니다", "월세 인상입니다", "계약서는 제 편"], last: "열쇠를 분실함", dmg: 1.45 },
+    { id: "streamer", name: "악성 시청자", color: "#8a20a0", hp: 72, speed: 92, fame: 22, pow: 14, xp: 32, behave: "dash",
+      quotes: ["후원 취소합니다", "클립 올렸어요", "채팅이 전장입니다"], last: "밴 당함", dmg: 1.35 },
+    { id: "taxman", name: "세무 조사관", color: "#2a4858", hp: 105, speed: 46, fame: 26, pow: 16, xp: 36, behave: "charge", ranged: true,
+      quotes: ["장부 제출하세요", "증빙이 부족합니다", "가산세요"], last: "영수증 뭉치에 깔림", dmg: 1.4 }
+  ];
+
+  const BOSSES = [
+    { id: "jang", name: "아파트 이장", color: "#8a2038", hp: 120, speed: 52, fame: 40, pow: 28, xp: 60, behave: "charge",
+      quotes: ["이 단지 내가 접수한다", "관리비에 악마력 포함", "반상회는 결투입니다"], last: "이장은 명예직이었다", dmg: 1.7 },
+    { id: "hq", name: "본사 감사팀장", color: "#3a2060", hp: 130, speed: 46, fame: 44, pow: 30, xp: 68, behave: "charge", ranged: true,
+      quotes: ["본사에서 왔습니다", "알바 전원 해고", "재고 실사입니다"], last: "출장 보고서가 백지", dmg: 1.55 },
+    { id: "finalish", name: "최종보스 아님", color: "#c41e3a", hp: 150, speed: 64, fame: 50, pow: 36, xp: 78, behave: "charge",
+      quotes: ["난 중간보스요", "인류멸망은 내일", "각오하세요 아마도"], last: "명함 그대로 최종보스 아님", dmg: 1.85 },
+    { id: "clerk", name: "민원창구 최종병기", color: "#1a5080", hp: 170, speed: 40, fame: 55, pow: 34, xp: 88, behave: "charge", shield: true, ranged: true,
+      quotes: ["대기번호 다시 뽑으세요", "서류 미비입니다", "창구는 닫힙니다"], last: "번호표가 만료됨", dmg: 1.75 },
+    { id: "ceo", name: "지옥본사 임시CEO", color: "#4a1028", hp: 200, speed: 58, fame: 70, pow: 42, xp: 110, behave: "charge",
+      quotes: ["실적 미달입니다", "구조조정입니다", "주주총회가 결투"], last: "임시직이 맞았다", dmg: 2.05 }
+  ];
+
+  let audioCtx = null;
+  function beep(freq, dur, type, vol) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type || "square";
+      o.frequency.value = freq;
+      g.gain.value = vol || 0.04;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      o.stop(audioCtx.currentTime + dur);
+    } catch (e) {}
+  }
+
+  const keys = {};
+  const mouse = { x: W / 2, y: H / 2, down: false };
+  let clickTarget = null;
+
+  const state = {
+    mode: "title",
+    player: null,
+    enemies: [],
+    items: [],
+    floats: [],
+    particles: [],
+    projectiles: [],
+    bubbles: [],
+    skillCd: {},
+    spawnAcc: 0,
+    quoteAcc: 0,
+    saveAcc: 0,
+    shake: 0,
+    flash: 0,
+    time: 0,
+    toast: "",
+    toastT: 0,
+    duelWait: 25,
+    inDuel: false,
+    wipeOnRevive: false,
+    hpDmgPool: 0,
+    hpHealPool: 0,
+    hpPoolT: 0,
+    duelGagT: 0,
+    combo: 0,
+    comboT: 0,
+    fever: 0,
+    event: null,
+    eventWait: 9,
+    eliteWait: 7,
+    bossWait: 16,
+    hostile: [],
+    candy: 0,
+    eatCd: 0,
+    storeCd: 0,
+    district: null,
+    districtWait: 22,
+    job: null,
+    jobWait: 9,
+    choice: null,
+    choiceWait: 16,
+    buff: null,
+    traffic: [],
+    gagWait: 11,
+    lastJob: null,
+    peels: [],
+    intern: null,
+    internBuff: 0,
+    hijackCd: 0,
+    cctvAcc: 0,
+    kakaoAcc: 0,
+    shift: 1,
+    shiftWait: 80,
+    runPerks: [],
+    contract: null,
+    bossKills: 0
+  };
+
+  function titleFor(fame) {
+    let t = TITLES[0];
+    for (const x of TITLES) if (fame >= x.fame) t = x;
+    return t;
+  }
+
+  function titleRank(fame) {
+    let r = 0;
+    for (let i = 0; i < TITLES.length; i++) if (fame >= TITLES[i].fame) r = i;
+    return r;
+  }
+
+  function rankNorm(fame) {
+    const n = Math.max(1, TITLES.length - 1);
+    return titleRank(fame != null ? fame : (state.player && state.player.fame) || 0) / n;
+  }
+
+  function perkLine(t) {
+    const b = (t && t.bonus) || {};
+    if (b.extraPeel) return "바나나 함정 +1";
+    if (b.comboBonus) return "콤보 유지 시간 증가";
+    if (b.mag) return "아이템 자석 강화";
+    if (b.mockExtra) return "조롱이 더 오래갑니다";
+    if (b.aoe) return "광역 범위 증가";
+    if (b.fameMul) return "명성 획득량 증가";
+    if (b.candyCap) return "사탕 주머니 확장";
+    if (b.intern) return "수습악마 출근";
+    if (b.huntSpd) return "자동사냥 이동속도";
+    if (b.heal) return "회복량 증가";
+    if (b.atk) return "악마력 타격 강화";
+    if (b.hp) return "체력 상한 증가";
+    if (b.ultCd) return "삼각김밥 쿨 감소";
+    if (b.eliteTaken) return "정예 피해 감소";
+    if (b.xpMul) return "경험치 보너스";
+    if (b.extraHop) return "단톡 전파 +2";
+    if (b.cd) return "전 스킬 쿨 감소";
+    return "";
+  }
+
+  function mergePerkBag(out, b) {
+    if (!b) return out;
+    if (b.extraPeel) out.extraPeel += b.extraPeel;
+    if (b.comboBonus) out.comboBonus += b.comboBonus;
+    if (b.mag) out.mag += b.mag;
+    if (b.mockExtra) out.mockExtra += b.mockExtra;
+    if (b.aoe) out.aoe *= b.aoe;
+    if (b.fameMul) out.fameMul *= b.fameMul;
+    if (b.candyCap) out.candyCap += b.candyCap;
+    if (b.intern) out.intern = true;
+    if (b.huntSpd) out.huntSpd *= b.huntSpd;
+    if (b.atk) out.atk *= b.atk;
+    if (b.heal) out.heal *= b.heal;
+    if (b.hp) out.hp += b.hp;
+    if (b.ultCd) out.ultCd *= b.ultCd;
+    if (b.eliteTaken) out.eliteTaken *= b.eliteTaken;
+    if (b.xpMul) out.xpMul *= b.xpMul;
+    if (b.extraHop) out.extraHop += b.extraHop;
+    if (b.cd) out.cd *= b.cd;
+    return out;
+  }
+
+  function rankPerks(fame) {
+    const out = {
+      extraPeel: 0, comboBonus: 0, mag: 0, mockExtra: 0, aoe: 1,
+      fameMul: 1, candyCap: 24, intern: false, huntSpd: 1, atk: 1,
+      heal: 1, hp: 0, ultCd: 1, eliteTaken: 1, xpMul: 1, extraHop: 0, cd: 1
+    };
+    const f = fame != null ? fame : (state.player && state.player.fame) || 0;
+    const r = titleRank(f);
+    for (let i = 0; i <= r; i++) mergePerkBag(out, TITLES[i].bonus);
+    for (const c of (state.runPerks || [])) mergePerkBag(out, c.apply);
+    return out;
+  }
+
+  function refreshMaxHp() {
+    const p = state.player;
+    if (!p) return;
+    const old = p.maxHp;
+    p.maxHp = 90 + p.level * 8 + Math.floor(p.devilPower * 0.08) + rankPerks().hp;
+    if (p.maxHp > old) p.hp += p.maxHp - old;
+    if (p.hp > p.maxHp) p.hp = p.maxHp;
+  }
+
+  function pressure() {
+    const p = state.player;
+    if (!p) return 0;
+    const shiftBonus = Math.min(0.35, ((state.shift || 1) - 1) * 0.035);
+    return Math.max(0, Math.min(1, (p.level - 1) * 0.028 + rankNorm(p.fame) * 0.55 + shiftBonus));
+  }
+
+  function gamePhase() {
+    const pr = pressure();
+    if (pr < 0.2) return "early";
+    if (pr >= 0.7) return "late";
+    return "mid";
+  }
+
+  function civilianCap() {
+    return Math.round(6 + pressure() * 11 + Math.min(4, (state.shift || 1) * 0.35));
+  }
+
+  function xpNeed(level) {
+    return Math.floor(32 + level * 20 + level * level * 8.5);
+  }
+
+  function makePlayer(name, saved) {
+    const p = {
+      name: name || "김악마",
+      x: W / 2, y: H / 2, r: 16,
+      vx: 0, vy: 0, facing: 1, walkT: 0,
+      hp: 100, maxHp: 100,
+      level: 1, xp: 0, xpNext: xpNeed(1),
+      fame: 0, devilPower: 0, kills: 0, rivalWins: 0,
+      autoHunt: false,
+      title: TITLES[0].name,
+      lastHit: 99,
+      atkT: 0, atkDur: 0, atkKind: null
+    };
+    if (saved) Object.assign(p, saved, { x: W / 2, y: H / 2, vx: 0, vy: 0 });
+    p.maxHp = 90 + p.level * 8 + Math.floor(p.devilPower * 0.08) + rankPerks(p.fame).hp;
+    if (p.hp > p.maxHp) p.hp = p.maxHp;
+    p.xpNext = xpNeed(p.level);
+    p.title = titleFor(p.fame).name;
+    return p;
+  }
+
+  function unlocked(id) {
+    const s = SKILLS.find(x => x.id === id);
+    return state.player && s && state.player.level >= s.level;
+  }
+
+  function dmg() {
+    const p = state.player;
+    let v = 13 + p.level * 2.7 + p.devilPower * 0.26 + rankNorm(p.fame) * 17.5;
+    v *= rankPerks().atk;
+    if (state.buff && state.buff.id === "power") v *= 1.45;
+    return v;
+  }
+
+  function enemyMaxHp(type) {
+    const atk = Math.max(12, dmg());
+    const hits = 2.6 + pressure() * 1.4;
+    const weight = (type.hp || 30) / 30;
+    return atk * hits * weight;
+  }
+
+  function moveSpeed() {
+    const p = state.player;
+    let v = 146 + p.level * 4.4 + p.devilPower * 0.06;
+    if (state.buff && state.buff.id === "speed") v *= 1.28;
+    if (state.event && state.event.id === "ice") v *= 0.72;
+    if (p.autoHunt) v *= rankPerks().huntSpd;
+    return v;
+  }
+
+  function magnetR() {
+    const p = state.player;
+    if (!p) return 42;
+    return 48 + p.level * 6 + p.devilPower * 0.03 + rankPerks().mag;
+  }
+
+  function announce(title, sub) {
+    document.getElementById("anTitle").textContent = title;
+    document.getElementById("anSub").textContent = sub || "";
+    const el = document.getElementById("announce");
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  function toast(msg) {
+    state.toast = msg;
+    state.toastT = 2.4;
+  }
+
+  function floatText(x, y, text, color) {
+    state.floats.push({ x, y, text, color: color || "#fff", t: 0.9, vy: -36 });
+  }
+
+  function hurtPlayer(n) {
+    const p = state.player;
+    if (!p || n <= 0) return;
+    p.hp -= n;
+    p.lastHit = 0;
+    state.hpDmgPool += n;
+  }
+
+  function healPlayer(n) {
+    const p = state.player;
+    if (!p || n <= 0) return;
+    const room = p.maxHp - p.hp;
+    const g = Math.min(room, n);
+    if (g <= 0) return;
+    p.hp += g;
+    state.hpHealPool += g;
+  }
+
+  function addCandy(n) {
+    if (!n) return;
+    state.candy = Math.min(rankPerks().candyCap, (state.candy || 0) + n);
+  }
+
+  function candyHealAmt() {
+    const p = state.player;
+    const rn = rankNorm(p.fame);
+    const base = 28 + p.level * 1.6 + p.maxHp * (0.18 + rn * 0.08);
+    return base * rankPerks().heal;
+  }
+
+  function inStore(p) {
+    return p.x > 430 && p.x < 640 && p.y > 360 && p.y < 500;
+  }
+
+  function inTree(p) {
+    return Math.hypot(p.x - 70, p.y - 530) < 48;
+  }
+
+  function eatCandy(auto) {
+    const p = state.player;
+    if (!p || state.mode !== "play") return false;
+    if ((state.eatCd || 0) > 0) {
+      if (!auto) toast("아직 입 안이 바삭합니다.");
+      return false;
+    }
+    if ((state.candy || 0) < 1) {
+      if (!auto) toast("사탕이 없습니다. 처치하거나 편의점에 가세요.");
+      return false;
+    }
+    if (p.hp >= p.maxHp - 1) {
+      if (!auto) toast("이미 배부릅니다.");
+      return false;
+    }
+    state.candy -= 1;
+    state.eatCd = 0.9;
+    const h = candyHealAmt();
+    healPlayer(h);
+    burst(p.x, p.y, "#ff6b9d", 10);
+    beep(520, 0.07, "triangle", 0.04);
+    toast((auto ? "비상 사탕! " : "사탕 섭취. ") + "체력 +" + Math.floor(h) + "  (남은 " + state.candy + "개)");
+    jobProgress("eat", 1);
+    return true;
+  }
+
+  function bubble(x, y, text) {
+    state.bubbles.push({ x, y, text, t: 1.8 });
+  }
+
+  function burst(x, y, color, n) {
+    for (let i = 0; i < (n || 8); i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 40 + Math.random() * 90;
+      state.particles.push({
+        x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        color, t: 0.35 + Math.random() * 0.3, r: 2 + Math.random() * 3
+      });
+    }
+  }
+
+  function addPower(n) { state.player.devilPower += n; }
+  function addFame(n) {
+    const p = state.player;
+    if (n > 0) n *= rankPerks().fameMul;
+    const before = titleFor(p.fame).name;
+    p.fame = Math.max(0, p.fame + n);
+    const after = titleFor(p.fame);
+    if (after.name !== before) {
+      p.title = after.name;
+      refreshMaxHp();
+      const perk = perkLine(after);
+      announce((titleRank(p.fame) + 1) + "등급 해금: " + after.name, perk ? after.gag + " · " + perk : after.gag);
+      const mobs = 2 + Math.min(3, Math.floor(titleRank(p.fame) / 3));
+      toast("별칭이 높아져 구경꾼 " + mobs + "명이 몰려옵니다." + (perk ? " 특전: " + perk : ""));
+      for (let i = 0; i < mobs; i++) spawnEnemy();
+      if (after.bonus && after.bonus.intern) {
+        ensureIntern(true);
+        toast("수습악마가 출근했습니다. 혼자 싸우지 마세요.");
+      }
+      beep(220, 0.08, "sawtooth", 0.05);
+      beep(330, 0.14, "square", 0.05);
+    }
+  }
+
+  function addXp(n) {
+    const p = state.player;
+    p.xp += n * rankPerks().xpMul;
+    while (p.xp >= p.xpNext) {
+      p.xp -= p.xpNext;
+      p.level += 1;
+      p.xpNext = xpNeed(p.level);
+      refreshMaxHp();
+      healPlayer(p.maxHp * 0.28);
+      announce("레벨 " + p.level, "발이 빨라졌습니다. 민원 기술이 대기열에 올랐습니다.");
+      floatText(p.x, p.y - 60, "이속 증가", "#7cffb2");
+      beep(392, 0.1, "square", 0.05);
+      beep(523, 0.16, "square", 0.05);
+      const newly = SKILLS.filter(s => s.level === p.level);
+      if (newly.length) toast("장난 해금: " + newly.map(s => s.name).join(", "));
+      if (p.level % 5 === 0) offerContract();
+    }
+  }
+
+  function offerContract() {
+    if (!state.player || state.contract || state.choice) {
+      state.pendingContract = true;
+      return;
+    }
+    const taken = new Set((state.runPerks || []).map(c => c.id));
+    let pool = CONTRACTS.filter(c => !taken.has(c.id));
+    if (pool.length < 2) pool = CONTRACTS.slice();
+    const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+    const a = shuffled[0];
+    const b = shuffled[1] || shuffled[0];
+    state.contract = { a, b };
+    document.getElementById("choiceQ").textContent = "레벨 " + state.player.level + " 계약 — 이번 출근의 특전을 고르세요";
+    document.getElementById("choiceA").textContent = a.name + " · " + a.desc;
+    document.getElementById("choiceB").textContent = b.name + " · " + b.desc;
+    state.choiceT = 12;
+    document.getElementById("choiceHud").classList.add("show");
+    syncChoiceTimer();
+    announce("지옥 근로계약", "특전을 하나 고르면 이번 판에 유지됩니다.");
+  }
+
+  function resolveContract(which) {
+    const c = state.contract;
+    state.contract = null;
+    state.pendingContract = false;
+    document.getElementById("choiceHud").classList.remove("show");
+    state.choiceT = 0;
+    syncChoiceTimer();
+    if (!c) return;
+    const pick = which === "a" ? c.a : c.b;
+    if (!state.runPerks) state.runPerks = [];
+    state.runPerks.push(pick);
+    refreshMaxHp();
+    toast("계약 체결: " + pick.name + " — " + pick.desc);
+    announce("계약 체결", pick.name);
+    beep(360, 0.1, "square", 0.05);
+  }
+
+  function spawnPos(p, minD) {
+    minD = minD || 100;
+    const spots = [
+      [220, 260], [640, 210], [900, 290], [400, 240],
+      [535, 270], [120, 390], [760, 430], [1020, 390],
+      [300, 500], [820, 190], [190, 150], [1100, 240],
+      [480, 180], [700, 520], [250, 330]
+    ];
+    for (let i = 0; i < 10; i++) {
+      let x, y;
+      const mode = Math.random();
+      if (mode < 0.58) {
+        const s = spots[Math.floor(Math.random() * spots.length)];
+        x = s[0] + (Math.random() - 0.5) * 100;
+        y = s[1] + (Math.random() - 0.5) * 80;
+      } else if (mode < 0.86) {
+        x = 70 + Math.random() * (W - 140);
+        y = 95 + Math.random() * (H - 170);
+      } else {
+        const edge = Math.floor(Math.random() * 4);
+        if (edge === 0) { x = 50 + Math.random() * (W - 100); y = 80; }
+        else if (edge === 1) { x = 50 + Math.random() * (W - 100); y = H - 60; }
+        else if (edge === 2) { x = 44; y = 100 + Math.random() * (H - 180); }
+        else { x = W - 44; y = 100 + Math.random() * (H - 180); }
+      }
+      x = Math.max(40, Math.min(W - 40, x));
+      y = Math.max(72, Math.min(H - 40, y));
+      if (Math.hypot(x - p.x, y - p.y) >= minD) return { x, y };
+    }
+    return { x: p.x < W / 2 ? W - 90 : 90, y: 120 + Math.random() * 420 };
+  }
+
+  function pickPattern(type, elite, boss) {
+    if (boss) return ["dash", "zigzag", "charge"][Math.floor(Math.random() * 3)];
+    if (elite) return type.ranged ? "flank" : ["dash", "zigzag", "charge"][Math.floor(Math.random() * 3)];
+    const map = {
+      alba: ["charge", "zigzag"],
+      delivery: ["zigzag", "dash"],
+      pt: ["dash", "charge"],
+      cafe: ["charge", "flank"],
+      office: ["charge", "flank"],
+      walker: ["zigzag", "charge"],
+      youtuber: ["flank", "zigzag"],
+      resident: ["charge", "dash"],
+      official: ["charge", "flank"],
+      good: ["charge", "flank"],
+      student: ["zigzag", "flee"],
+      ajumma: ["charge", "dash"],
+      security: ["charge", "flank"],
+      influencer: ["flank", "zigzag"],
+      gold: ["zigzag", "dash"],
+      mayor: ["charge", "flank"],
+      cat: ["zigzag", "dash"],
+      chick: ["dash", "charge"],
+      ghost: ["flank", "zigzag"]
+    };
+    const pool = map[type.id] || ["charge", "zigzag"];
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function spawnEnemy(forceSpecial) {
+    const p = state.player;
+    const rankT = rankNorm(p.fame);
+    let type;
+    if (forceSpecial || Math.random() < (p.level < 5 ? 0.02 : 0.1 + rankT * 0.18)) {
+      const specIds = (state.district && state.district.id === "park") ? ["cat"]
+        : (state.district && state.district.id === "hall") ? ["mayor"]
+        : (state.district && state.district.id === "market") ? ["gold", "chick"]
+        : (state.district && state.district.id === "subway") ? ["ghost", "gold"]
+        : (state.district && state.district.id === "school") ? ["ghost", "cat"]
+        : null;
+      const prefer = specIds ? SPECIALS.filter(s => specIds.includes(s.id)) : [];
+      type = (prefer.length && Math.random() < 0.55)
+        ? prefer[Math.floor(Math.random() * prefer.length)]
+        : SPECIALS[Math.floor(Math.random() * SPECIALS.length)];
+    } else {
+      const pool = ENEMIES.filter(e => p.level >= e.minLv);
+      const crowd = (state.district && state.district.crowd) || [];
+      const prefer = pool.filter(e => crowd.includes(e.id));
+      type = (prefer.length && Math.random() < 0.74)
+        ? prefer[Math.floor(Math.random() * prefer.length)]
+        : pool[Math.floor(Math.random() * pool.length)];
+    }
+    const pos = spawnPos(p, 108);
+    const hp = enemyMaxHp(type);
+    state.enemies.push({
+      type, x: pos.x, y: pos.y, r: 18,
+      hp: hp, maxHp: hp,
+      burn: 0, mock: 0, quoteT: 0.4 + Math.random() * 2,
+      hitFlash: 0, alerted: true, facing: pos.x < p.x ? 1 : -1, walkT: 0, tripT: 0, hitGate: 0, shotT: 0.8,
+      pattern: pickPattern(type, false, false),
+      seed: Math.random() * 100,
+      orbitDir: Math.random() < 0.5 ? 1 : -1,
+      dashT: 0.4 + Math.random()
+    });
+  }
+
+  function spawnTough(kind) {
+    const p = state.player;
+    if (!p) return;
+    const rankT = rankNorm(p.fame);
+    if (kind === "elite" && pressure() < 0.24) return;
+    if (kind === "boss" && pressure() < 0.42) return;
+    let pool = kind === "boss" ? BOSSES : ELITES;
+    if (kind === "boss") {
+      const unlocked = BOSSES.slice(0, Math.max(1, Math.min(BOSSES.length, 1 + Math.floor(rankT * 2.2))));
+      pool = unlocked;
+      const prefer = unlocked.filter(e => state.district && (state.district.bosses || []).includes(e.id));
+      if (prefer.length && Math.random() < 0.7) pool = prefer;
+    } else {
+      const prefer = ELITES.filter(e => state.district && (state.district.elites || []).includes(e.id));
+      if (prefer.length && Math.random() < 0.72) pool = prefer;
+    }
+    const type = pool[Math.floor(Math.random() * pool.length)];
+    const pos = spawnPos(p, 140);
+    const mul = kind === "boss"
+      ? (3.3 + pressure() * 1.3)
+      : (1.8 + pressure() * 0.75);
+    const hp = enemyMaxHp(type) * mul;
+    state.enemies.push({
+      type, x: pos.x, y: pos.y, r: kind === "boss" ? 26 : 21,
+      hp: hp, maxHp: hp,
+      burn: 0, mock: 0, quoteT: 0.15,
+      hitFlash: 0, alerted: true, facing: pos.x < p.x ? 1 : -1,
+      walkT: 0, tripT: 0, hitGate: 0, shotT: 0.5,
+      elite: kind === "elite",
+      boss: kind === "boss",
+      pattern: pickPattern(type, kind === "elite", kind === "boss"),
+      seed: Math.random() * 100,
+      orbitDir: Math.random() < 0.5 ? 1 : -1,
+      dashT: 0.2 + Math.random() * 0.5
+    });
+    if (kind === "boss") {
+      announce("미니보스 출현", type.name + " 이(가) 이 단지를 접수하러 왔습니다.");
+      toast("자동사냥이 보스를 먼저 쫓습니다. 맞으면 아픕니다.");
+      state.shake = 0.38;
+      beep(90, 0.18, "sawtooth", 0.07);
+      beep(140, 0.12, "square", 0.05);
+    } else {
+      toast("정예 출현: " + type.name);
+      beep(160, 0.08, "square", 0.05);
+    }
+  }
+
+  function dropItem(x, y) {
+    if (Math.random() > 0.62) return;
+    let t = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+    if (state.player && state.player.hp / state.player.maxHp < 0.55 && Math.random() < 0.42) {
+      t = ITEMS.find(i => i.id === "candy") || t;
+    }
+    state.items.push({ type: t, x, y, t: 0 });
+  }
+
+  function nearestEnemy(x, y) {
+    if (state.inDuel) {
+      const riv = state.enemies.find(e => e.rival && !e.dead);
+      if (riv) return riv;
+    }
+    let best = null, bd = 1e9, br = -1;
+    for (const e of state.enemies) {
+      if (e.dead) continue;
+      const rank = e.rival ? 100 : (e.boss ? 50 : (e.elite ? 20 : 0));
+      const d = (e.x - x) * (e.x - x) + (e.y - y) * (e.y - y);
+      if (rank > br || (rank === br && d < bd)) {
+        br = rank;
+        bd = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  function hurtEnemy(e, amount, fameMul) {
+    if (!e || e.dead) return;
+    if ((e.hitGate || 0) > 0 && !e.rival) return;
+    let dealt0 = amount;
+    if (e.type.shield) dealt0 *= 0.62;
+    if (e.boss) dealt0 = Math.min(dealt0, Math.max(24, e.maxHp * 0.08));
+    else if (e.elite) dealt0 = Math.min(dealt0, Math.max(20, e.maxHp * 0.13));
+    else if (!e.rival) dealt0 = Math.min(dealt0, Math.max(14, e.maxHp * 0.4));
+    const crit = !e.rival && Math.random() < 0.16;
+    const dealt = crit ? dealt0 * (e.boss ? 1.3 : 1.75) : dealt0;
+    e.hp -= dealt;
+    e.hitFlash = 0.12;
+    e.hitGate = e.rival ? 0.07 : (e.boss ? 0.12 : (e.elite ? 0.14 : 0.14));
+    healPlayer(dealt * (e.boss || e.elite ? 0.008 : 0.02) * rankPerks().heal);
+    floatText(e.x, e.y - 18, (crit ? "병맛크리 " : "-") + Math.floor(dealt), crit ? "#ffd166" : "#ff6b6b");
+    if (e.hp <= 0) killEnemy(e, fameMul || 1);
+  }
+
+  function killEnemy(e, fameMul) {
+    const t = e.type;
+    burst(e.x, e.y, t.color, 14);
+    floatText(e.x, e.y - 28, t.last, "#ffe0c0");
+    const p = state.player;
+    p.kills += 1;
+    state.combo = (state.combo || 0) + 1;
+    state.comboT = (state.fever > 0 ? 3.8 : 2.6) + rankPerks().comboBonus;
+    const mul = comboMul();
+    const fam = Math.floor(t.fame * (fameMul || 1) * mul);
+    addFame(fam);
+    addPower(t.pow);
+    addXp(t.xp * mul);
+    floatText(e.x + 16, e.y, "+" + t.pow + " 악마력", "#b388ff");
+    floatText(e.x - 16, e.y + 12, "+" + fam + " 명성", "#ffd166");
+    if (state.combo === 10 || state.combo === 25 || state.combo === 50 || state.combo === 80) {
+      announce("민원 콤보 x" + state.combo, "이 동네가 난리가 났습니다.");
+      state.shake = 0.2;
+    }
+    jobProgress("kills", 1);
+    jobProgress("combo");
+    if (e.elite) jobProgress("elite", 1);
+    if (e.boss) {
+      state.bossKills = (state.bossKills || 0) + 1;
+      jobProgress("boss", 1);
+    }
+    if (t.id === "gold") { dropItem(e.x, e.y); dropItem(e.x + 10, e.y); rainLoot(2); }
+    if (t.id === "cat") healPlayer(state.player.maxHp * 0.1);
+    if (t.id === "mayor") { addFame(18); rainLoot(3); }
+    if (t.id === "chick") healPlayer(16);
+    if (e.elite) {
+      addFame(14);
+      addXp(22);
+      rainLoot(2);
+      toast("정예 처치: " + t.name);
+    }
+    if (e.boss) {
+      addFame(48);
+      addXp(70);
+      rainLoot(5);
+      healPlayer(p.maxHp * 0.18);
+      announce("미니보스 처치", t.name + " 의 명함이 구겨졌습니다.");
+      toast("이 동네는 잠시 조용합니다. 아주 잠시.");
+      state.shake = 0.28;
+    }
+    dropItem(e.x, e.y);
+    if (Math.random() < 0.34 || e.elite || e.boss) {
+      addCandy(e.boss ? 2 : 1);
+      floatText(e.x, e.y - 40, "사탕+" + (e.boss ? 2 : 1), "#ff6b9d");
+    }
+    e.dead = true;
+    beep(140, 0.08, "sawtooth", 0.04);
+    if (e.rival) {
+      const bonus = Math.floor(48 + p.level * 22 + t.xp);
+      addXp(bonus);
+      healPlayer(p.maxHp * 0.22);
+      state.inDuel = false;
+      state.duelWait = (gamePhase() === "early" ? 65 : 40) + Math.random() * 12;
+      announce("결투 승리", "경험치 " + bonus + "를 이면지 봉투에 담았습니다. 원천징수 포함.");
+      toast("이직은 보류. 경험치만 입금됐습니다.");
+      beep(330, 0.12, "square", 0.05);
+      p.rivalWins = (p.rivalWins || 0) + 1;
+      updateBest(true);
+    }
+  }
+
+  function spawnRival() {
+    if (state.inDuel || !state.player) return;
+    const p = state.player;
+    if (p.level < 4 && titleRank(p.fame) < 1) {
+      state.duelWait = 18;
+      return;
+    }
+    const type = RIVALS[Math.floor(Math.random() * RIVALS.length)];
+    const hp = Math.max(160, dmg() * (10 + pressure() * 6) + p.level * 10);
+    let x = p.x + (Math.random() < 0.5 ? -220 : 220);
+    let y = p.y + (Math.random() < 0.5 ? -80 : 80);
+    x = Math.max(60, Math.min(W - 60, x));
+    y = Math.max(90, Math.min(H - 80, y));
+    state.enemies.push({
+      type, x, y, r: 20,
+      hp: hp, maxHp: hp,
+      burn: 0, mock: 0, quoteT: 0.2,
+      hitFlash: 0, alerted: true, facing: x < p.x ? 1 : -1,
+      walkT: 0, tripT: 0, rival: true,
+      pattern: Math.random() < 0.5 ? "dash" : "zigzag",
+      seed: Math.random() * 100,
+      orbitDir: Math.random() < 0.5 ? 1 : -1,
+      dashT: 0.3
+    });
+    state.inDuel = true;
+    state.duelGagT = 6;
+    announce("월례 악마 결투", type.name + " 님이 이직 면접을 신청했습니다.");
+    toast("지면 신입부터입니다. 이기면 경험치 봉투.");
+    beep(110, 0.16, "sawtooth", 0.06);
+  }
+
+  function comboMul() {
+    let m = 1 + Math.min(1.35, (state.combo || 0) * 0.026);
+    if (state.fever > 0) m += 0.3;
+    if (state.event && state.event.id === "live") m += 0.7;
+    return m;
+  }
+
+  function rainLoot(n) {
+    for (let i = 0; i < n; i++) {
+      const t = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+      state.items.push({
+        type: t,
+        x: 80 + Math.random() * (W - 160),
+        y: 90 + Math.random() * (H - 200),
+        t: 0
+      });
+    }
+  }
+
+  function startChaos() {
+    if (state.inDuel || !state.player) return;
+    const pool = state.player.level < 5
+      ? CHAOS.filter(c => c.id !== "audit" && c.id !== "chicken" && c.id !== "kakao")
+      : CHAOS;
+    const ev = pool[Math.floor(Math.random() * pool.length)];
+    state.event = { id: ev.id, t: ev.time, name: ev.name };
+    announce(ev.name, ev.desc);
+    beep(240, 0.1, "triangle", 0.05);
+    if (ev.id === "chicken") {
+      healPlayer(state.player.maxHp * 0.4);
+      state.player.lastHit = 99;
+    }
+    if (ev.id === "sale" || ev.id === "rain") rainLoot(ev.id === "rain" ? 14 : 10);
+    if (ev.id === "fever") state.fever = ev.time;
+    if (ev.id === "chicken" || ev.id === "sale") {
+      for (let i = 0; i < 3; i++) spawnEnemy(true);
+    }
+    if (ev.id === "siren") {
+      for (let i = 0; i < 5; i++) spawnEnemy();
+    }
+    if (ev.id === "refund") {
+      healPlayer(state.player.maxHp * 0.22);
+      rainLoot(8);
+    }
+    if (ev.id === "elevator") {
+      const p = state.player;
+      const pos = spawnPos(p, 40);
+      p.x = pos.x; p.y = pos.y;
+      for (const e of state.enemies) {
+        const ep = spawnPos(p, 80);
+        e.x = ep.x; e.y = ep.y;
+      }
+      state.flash = 0.35;
+      state.shake = 0.2;
+      toast("층수 버튼을 잘못 눌렀습니다.");
+    }
+    if (ev.id === "kakao") state.kakaoAcc = 0;
+    if (ev.id === "cctv") state.cctvAcc = 0;
+  }
+
+  function jobProgress(kind, n) {
+    const j = state.job;
+    if (!j || j.kind !== kind) return;
+    if (kind === "combo") j.prog = state.combo || 0;
+    else j.prog = (j.prog || 0) + (n || 1);
+    if (j.prog >= j.need) completeJob();
+  }
+
+  function startJob() {
+    if (state.inDuel || state.choice || state.contract || !state.player) return;
+    let pool = JOBS.filter(j => j.id !== state.lastJob);
+    if (pressure() < 0.24) pool = pool.filter(j => j.kind !== "elite" && j.kind !== "boss");
+    if (pressure() < 0.45) pool = pool.filter(j => j.kind !== "boss");
+    if (!unlocked("chat")) pool = pool.filter(j => j.kind !== "chat");
+    if (!unlocked("peel")) pool = pool.filter(j => j.kind !== "peel");
+    if (!pool.length) pool = JOBS.filter(j => j.kind !== "boss");
+    const spec = pool[Math.floor(Math.random() * pool.length)];
+    const need = spec.kind === "kills" ? (8 + Math.floor(pressure() * 7))
+      : spec.kind === "combo" ? (12 + Math.floor(pressure() * 6))
+      : spec.need;
+    state.lastJob = spec.id;
+    state.job = { id: spec.id, title: spec.title, kind: spec.kind, need: need, prog: 0, t: spec.time };
+    announce(spec.title, spec.gag);
+    if (spec.kind === "survive") {
+      for (let i = 0; i < 5; i++) spawnEnemy();
+    }
+    if (spec.kind === "elite") spawnTough("elite");
+    if (spec.kind === "boss") spawnTough("boss");
+    if (spec.kind === "loot") rainLoot(3);
+    beep(300, 0.08, "square", 0.04);
+  }
+
+  function completeJob() {
+    const j = state.job;
+    if (!j) return;
+    state.job = null;
+    state.jobWait = 14 + Math.random() * 8;
+    addFame(10 + Math.floor(pressure() * 8));
+    addXp(12 + Math.floor(pressure() * 10));
+    addCandy(1);
+    healPlayer(state.player.maxHp * 0.12);
+    announce("민원 완료", j.title + " — 사탕과 명성을 챙겼습니다.");
+    toast("미션 성공. 이 동네가 잠깐 조용합니다.");
+    beep(420, 0.1, "square", 0.05);
+  }
+
+  function failJob() {
+    if (!state.job) return;
+    toast("민원 실패. 담당자가 한숨을 쉽니다.");
+    state.job = null;
+    state.jobWait = 8 + Math.random() * 5;
+    spawnEnemy();
+  }
+
+  function changeDistrict() {
+    if (!state.player || state.inDuel) return;
+    const cur = state.district && state.district.id;
+    let next = DISTRICTS[Math.floor(Math.random() * DISTRICTS.length)];
+    let guard = 0;
+    while (next.id === cur && guard++ < 8) next = DISTRICTS[Math.floor(Math.random() * DISTRICTS.length)];
+    state.district = next;
+    announce("이동: " + next.name, next.gags[Math.floor(Math.random() * next.gags.length)]);
+    toast(next.name + "으로 이사했습니다.");
+    state.flash = 0.2;
+    state.shake = 0.12;
+    for (let i = 0; i < 3; i++) spawnEnemy();
+    state.districtWait = 28 + Math.random() * 16;
+    beep(180, 0.1, "triangle", 0.04);
+  }
+
+  function syncChoiceTimer() {
+    const el = document.getElementById("choiceTimer");
+    if (!el) return;
+    if (!state.choice && !state.contract) {
+      el.textContent = "";
+      el.classList.remove("warn");
+      return;
+    }
+    const sec = Math.max(0, Math.ceil(state.choiceT || 0));
+    el.textContent = "자동선택 " + sec + "초";
+    el.classList.toggle("warn", sec <= 3);
+  }
+
+  function offerChoice() {
+    if (state.inDuel || !state.player || state.choice || state.contract) return;
+    if (state.pendingContract) { offerContract(); return; }
+    if (state.job) { state.choiceWait = 3; return; }
+    const c = CHOICES[Math.floor(Math.random() * CHOICES.length)];
+    state.choice = c;
+    state.choiceT = 5;
+    document.getElementById("choiceQ").textContent = c.q;
+    document.getElementById("choiceA").textContent = c.a;
+    document.getElementById("choiceB").textContent = c.b;
+    document.getElementById("choiceHud").classList.add("show");
+    syncChoiceTimer();
+  }
+
+  function resolveChoice(which, auto) {
+    if (state.contract) {
+      resolveContract(which);
+      return;
+    }
+    const c = state.choice;
+    document.getElementById("choiceHud").classList.remove("show");
+    state.choice = null;
+    state.choiceT = 0;
+    syncChoiceTimer();
+    state.choiceWait = 26 + Math.random() * 14;
+    if (!c || !state.player) return;
+    const autoTag = auto ? "시간 초과 · 자동선택. " : "";
+    if (which === "a") {
+      toast(autoTag + c.aOk);
+      if (c.id === "parcel") { addCandy(2); rainLoot(3); }
+      else if (c.id === "news") { addFame(22); state.fever = 6; }
+      else if (c.id === "meet") { state.bossWait = Math.min(state.bossWait, 6); addXp(16); }
+      else if (c.id === "gym") { state.buff = { id: "speed", t: 10 }; healPlayer(18); }
+      else if (c.id === "coupon") { state.buff = { id: "power", t: 9 }; rainLoot(2); }
+      else if (c.id === "cat") { healPlayer(state.player.maxHp * 0.18); addFame(8); }
+      else if (c.id === "collab") { addFame(18); spawnEnemy(); spawnEnemy(); }
+      else if (c.id === "intern") {
+        state.internBuff = 12;
+        ensureIntern(true);
+        toast("수습 평가: 잘함. 인턴이 열정 과다입니다.");
+      }
+      else if (c.id === "peelq") {
+        dropPeels(3);
+        toast("바나나 상자가 바닥에 쏟아졌습니다.");
+      }
+      else { addCandy(2); state.buff = { id: "power", t: 8 }; }
+    } else {
+      toast(autoTag + c.bOk);
+      if (c.id === "parcel") { spawnEnemy(); spawnEnemy(); }
+      else if (c.id === "news") healPlayer(state.player.maxHp * 0.2);
+      else if (c.id === "meet") addCandy(2);
+      else if (c.id === "gym") addFame(8);
+      else if (c.id === "coupon") addFame(10);
+      else if (c.id === "cat") { spawnEnemy(); addCandy(1); }
+      else if (c.id === "collab") addCandy(2);
+      else if (c.id === "intern") { addCandy(3); addFame(6); }
+      else if (c.id === "peelq") { addFame(10); dropPeels(1); }
+      else { spawnEnemy(); spawnEnemy(); spawnEnemy(); }
+    }
+    beep(260, 0.08, "square", 0.04);
+  }
+
+  function clickMap(x, y) {
+    const p = state.player;
+    if (x > 430 && x < 640 && y > 360 && y < 500) {
+      if ((state.storeCd || 0) > 0) {
+        toast("점장이 계산 중입니다.");
+        return true;
+      }
+      state.storeCd = 2.2;
+      addCandy(1);
+      const hm = rankPerks().heal;
+      healPlayer((p.maxHp * 0.16 + 14) * hm);
+      toast("삼각김밥 계산. 사탕 +1");
+      burst(535, 430, "#ffd166", 12);
+      jobProgress("store", 1);
+      if (Math.random() < 0.2) {
+        spawnEnemy();
+        toast("덤으로 알바가 튀어나왔습니다.");
+      }
+      return true;
+    }
+    if (Math.hypot(x - 70, y - 530) < 40) {
+      if ((state.storeCd || 0) > 0.4) {
+        toast("사과도 계산이 필요하답니다.");
+        return true;
+      }
+      state.storeCd = 1.6;
+      healPlayer(p.maxHp * 0.1 + 10);
+      addCandy(Math.random() < 0.35 ? 1 : 0);
+      toast("나무가 사과를 떨어뜨렸습니다. 왜?");
+      burst(70, 530, "#7cb342", 8);
+      jobProgress("tree", 1);
+      return true;
+    }
+    return false;
+  }
+
+  function dropPeels(n) {
+    const p = state.player;
+    if (!p) return;
+    if (!state.peels) state.peels = [];
+    const count = Math.max(1, n || 1);
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 28 + i * 18;
+      state.peels.push({
+        x: Math.max(40, Math.min(W - 40, p.x + Math.cos(ang) * dist)),
+        y: Math.max(80, Math.min(H - 40, p.y + Math.sin(ang) * dist)),
+        t: 8.5,
+        r: 16
+      });
+    }
+  }
+
+  function ensureIntern(force) {
+    const p = state.player;
+    if (!p) return;
+    if (!rankPerks().intern && !force && (state.internBuff || 0) <= 0) {
+      if (!force) state.intern = null;
+      return;
+    }
+    if (!state.intern) {
+      state.intern = {
+        x: p.x - 42, y: p.y + 8, facing: 1, walkT: 0, atk: 0.4, quoteT: 3,
+        name: "수습 " + (p.name || "악마").slice(0, 2)
+      };
+    }
+  }
+
+  function hopChat(from, hops, dmgAmt, visited) {
+    const p = state.player;
+    if (!from || from.dead || !p) return;
+    state.projectiles.push({
+      kind: "chat",
+      x: p.x, y: p.y - 8,
+      vx: 0, vy: 0,
+      target: from,
+      hops: hops,
+      visited: visited || [],
+      life: 1.4,
+      r: 10,
+      dmg: dmgAmt
+    });
+  }
+
+  function startAtkAnim(kind, tgt) {
+    const p = state.player;
+    if (!p) return;
+    const dur = kind === "scratch" ? 0.22
+      : kind === "gimbap" ? 0.45
+      : kind === "overtime" || kind === "complaint" ? 0.34
+      : kind === "sneeze" ? 0.28
+      : kind === "mock" ? 0.3
+      : 0.26;
+    p.atkT = dur;
+    p.atkDur = dur;
+    p.atkKind = kind || "scratch";
+    if (tgt) p.facing = tgt.x >= p.x ? 1 : -1;
+  }
+
+  function cast(id) {
+    const def = SKILLS.find(s => s.id === id);
+    if (!def || !unlocked(id) || def.passive || def.toggle) return false;
+    if ((state.skillCd[id] || 0) > 0) return false;
+    const p = state.player;
+    const tgt = nearestEnemy(p.x, p.y);
+    if (id === "scratch") {
+      if (!tgt) return false;
+      const d = Math.hypot(tgt.x - p.x, tgt.y - p.y);
+      if (d > 42) return false;
+      startAtkAnim("scratch", tgt);
+      hurtEnemy(tgt, dmg(), 1);
+      burst((p.x + tgt.x) / 2, (p.y + tgt.y) / 2, "#ff4d6d", 6);
+      beep(180, 0.05, "square", 0.03);
+    } else if (id === "peel") {
+      startAtkAnim("peel", tgt);
+      dropPeels(1 + rankPerks().extraPeel);
+      floatText(p.x, p.y - 28, "미끄럼주의", "#ffe066");
+      beep(320, 0.06, "triangle", 0.04);
+    } else if (id === "chat") {
+      if (!tgt) return false;
+      startAtkAnim("chat", tgt);
+      hopChat(tgt, 4 + rankPerks().extraHop, dmg() * 1.12);
+      bubble(tgt.x, tgt.y - 30, CHAT_LINES[Math.floor(Math.random() * CHAT_LINES.length)]);
+      beep(640, 0.05, "square", 0.03);
+    } else if (id === "sneeze") {
+      if (!tgt) return false;
+      startAtkAnim("sneeze", tgt);
+      const ang = Math.atan2(tgt.y - p.y, tgt.x - p.x);
+      state.projectiles.push({
+        kind: "fire", x: p.x, y: p.y,
+        vx: Math.cos(ang) * 420, vy: Math.sin(ang) * 420,
+        life: 0.7, r: 8, dmg: dmg() * 1.55
+      });
+      beep(260, 0.07, "triangle", 0.04);
+    } else if (id === "mock") {
+      if (!tgt) return false;
+      startAtkAnim("mock", tgt);
+      tgt.mock = 4.2 + rankPerks().mockExtra;
+      bubble(tgt.x, tgt.y - 30, tgt.rival
+        ? ["명함이 더 싸구려예요", "수습 아니에요?", "인스타 팔로워 조작이죠"][Math.floor(Math.random() * 3)]
+        : ["이력서에 알바만 있네", "세금 낸 티 나는 얼굴", "그 신발 할인이지"][Math.floor(Math.random() * 3)]);
+      floatText(tgt.x, tgt.y - 40, "조롱!", "#ff9ecd");
+      addFame(4);
+      beep(500, 0.06, "square", 0.03);
+    } else if (id === "overtime") {
+      startAtkAnim("overtime", tgt);
+      burst(p.x, p.y, "#7b2dbe", 20);
+      state.flash = 0.12;
+      const rad = 150 * rankPerks().aoe;
+      for (const e of state.enemies) {
+        if (Math.hypot(e.x - p.x, e.y - p.y) < rad) hurtEnemy(e, dmg() * 1.85, 1.1);
+      }
+      beep(90, 0.12, "sawtooth", 0.05);
+    } else if (id === "complaint") {
+      startAtkAnim("complaint", tgt);
+      const list = state.enemies.slice().sort(() => Math.random() - 0.5).slice(0, 6);
+      for (const e of list) {
+        hurtEnemy(e, dmg() * 1.5, 1.2);
+        floatText(e.x, e.y - 10, "민원!", "#ffd166");
+      }
+      beep(700, 0.05, "square", 0.03);
+    } else if (id === "gimbap") {
+      startAtkAnim("gimbap", tgt);
+      state.shake = 0.45;
+      state.flash = 0.28;
+      announce("최종병기 삼각김밥", "유통기한이 마을을 덮칩니다.");
+      for (const e of state.enemies.slice()) hurtEnemy(e, dmg() * 3.8, 1.4);
+      beep(80, 0.2, "sawtooth", 0.06);
+    } else return false;
+    let cd = def.cd * rankPerks().cd;
+    if (id === "gimbap") cd *= rankPerks().ultCd;
+    state.skillCd[id] = cd;
+    return true;
+  }
+
+  function save() {
+    if (!state.player) return;
+    const p = state.player;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      name: p.name, level: p.level, xp: p.xp, fame: p.fame,
+      devilPower: p.devilPower, kills: p.kills, rivalWins: p.rivalWins || 0, hp: p.hp,
+      autoHunt: p.autoHunt, candy: state.candy || 0,
+      shift: state.shift || 1, bossKills: state.bossKills || 0,
+      runPerks: (state.runPerks || []).map(c => c.id)
+    }));
+    updateBest(false);
+  }
+
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function runScore(p) {
+    if (!p) return 0;
+    return Math.floor(p.fame || 0) + (p.kills || 0) * 3 + (p.level || 1) * 40
+      + (p.rivalWins || 0) * 100 + Math.floor(p.devilPower || 0)
+      + (state.bossKills || 0) * 80 + ((state.shift || 1) - 1) * 50
+      + ((state.runPerks || []).length) * 60;
+  }
+
+  function loadBest() {
+    try {
+      const raw = localStorage.getItem(BEST_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return null;
+  }
+
+  function snapshotBest(p) {
+    return {
+      name: p.name,
+      title: p.title || titleFor(p.fame).name,
+      level: p.level,
+      fame: Math.floor(p.fame),
+      devilPower: Math.floor(p.devilPower),
+      kills: p.kills || 0,
+      rivalWins: p.rivalWins || 0,
+      score: runScore(p)
+    };
+  }
+
+  function esc(s) {
+    return String(s || "").replace(/[&<>]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c];
+    });
+  }
+
+  function formatBest(b) {
+    if (!b) return '<span class="empty">아직 민원 기록이 없습니다.</span>';
+    return "<b>최고기록</b>  [" + esc(b.title) + "] " + esc(b.name)
+      + "<br>Lv." + b.level + " · 명성 " + b.fame + " · 처치 " + b.kills
+      + " · 결투승 " + (b.rivalWins || 0)
+      + "<br>점수 " + b.score + " (이력서에 도장 찍힘)";
+  }
+
+  function updateBest(announceIt) {
+    const p = state.player;
+    if (!p) return false;
+    const snap = snapshotBest(p);
+    if (snap.kills < 1 && (snap.fame || 0) < 1 && snap.level <= 1) return false;
+    const prev = loadBest();
+    if (!prev || snap.score > (prev.score || 0)) {
+      localStorage.setItem(BEST_KEY, JSON.stringify(snap));
+      state.bestScore = snap.score;
+      if (announceIt && prev && snap.score > prev.score) {
+        announce("최고기록 갱신", snap.score + "점. 이력서가 새로 인쇄됐습니다.");
+        toast("최고기록! 점수는 " + snap.score + "점입니다.");
+      }
+      renderBestBoard();
+      return true;
+    }
+    return false;
+  }
+
+  function renderBestBoard() {
+    let b = loadBest();
+    if (!b) {
+      const s = loadSave();
+      if (s) {
+        b = snapshotBest({
+          name: s.name,
+          title: titleFor(s.fame || 0).name,
+          level: s.level || 1,
+          fame: s.fame || 0,
+          devilPower: s.devilPower || 0,
+          kills: s.kills || 0,
+          rivalWins: s.rivalWins || 0
+        });
+        localStorage.setItem(BEST_KEY, JSON.stringify(b));
+      }
+    }
+    const el = document.getElementById("bestBoard");
+    if (el) el.innerHTML = formatBest(b);
+    if (b) state.bestScore = b.score;
+  }
+
+  function startGame(fromSave) {
+    const saved = fromSave ? loadSave() : null;
+    const name = (document.getElementById("nameInput").value || "김악마").slice(0, 10);
+    state.player = makePlayer(saved ? saved.name : name, saved || null);
+    if (!saved) {
+      state.player.autoHunt = true;
+    }
+    state.enemies = [];
+    state.items = [];
+    state.floats = [];
+    state.particles = [];
+    state.projectiles = [];
+    state.bubbles = [];
+    state.skillCd = {};
+    state.spawnAcc = 0;
+    state.duelWait = (state.player.level < 5 && titleRank(state.player.fame) < 2) ? 70 : 42;
+    state.inDuel = false;
+    state.wipeOnRevive = false;
+    state.hpDmgPool = 0;
+    state.hpHealPool = 0;
+    state.hpPoolT = 0;
+    state.player.lastHit = 99;
+    state.combo = 0;
+    state.comboT = 0;
+    state.fever = 0;
+    state.event = null;
+    state.eventWait = pressure() < 0.22 ? 18 : 11;
+    state.eliteWait = pressure() < 0.24 ? 55 : 16;
+    state.bossWait = pressure() < 0.42 ? 90 : 28;
+    state.hostile = [];
+    state.candy = saved && saved.candy != null ? Math.min(rankPerks().candyCap, saved.candy) : 3;
+    state.eatCd = 0;
+    state.storeCd = 0;
+    state.district = DISTRICTS[0];
+    state.districtWait = 28;
+    state.job = null;
+    state.jobWait = 10;
+    state.choice = null;
+    state.choiceT = 0;
+    state.choiceWait = 22;
+    state.buff = null;
+    state.traffic = [];
+    state.gagWait = 9;
+    state.lastJob = null;
+    state.peels = [];
+    state.intern = null;
+    state.internBuff = 0;
+    state.hijackCd = 0;
+    state.cctvAcc = 0;
+    state.kakaoAcc = 0;
+    state.shift = saved && saved.shift ? saved.shift : 1;
+    state.shiftWait = 85;
+    state.runPerks = [];
+    if (saved && saved.runPerks && saved.runPerks.length) {
+      state.runPerks = saved.runPerks.map(id => CONTRACTS.find(c => c.id === id)).filter(Boolean);
+    }
+    state.contract = null;
+    state.pendingContract = false;
+    state.bossKills = saved && saved.bossKills ? saved.bossKills : 0;
+    refreshMaxHp();
+    document.getElementById("choiceHud").classList.remove("show");
+    for (let i = 0; i < 3 + Math.min(4, Math.floor(titleRank(state.player.fame) / 2)); i++) spawnEnemy();
+    ensureIntern(false);
+    state.mode = "play";
+    document.getElementById("titleScreen").classList.add("hidden");
+    document.getElementById("pauseScreen").classList.add("hidden");
+    document.getElementById("deadScreen").classList.add("hidden");
+    document.getElementById("hud").classList.remove("hidden");
+    buildSkills();
+    updateBest(false);
+    syncHud();
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    beep(196, 0.1, "square", 0.04);
+  }
+
+  function buildSkills() {
+    const bar = document.getElementById("skillBar");
+    bar.innerHTML = "";
+    SKILLS.forEach((s, i) => {
+      const b = document.createElement("button");
+      b.className = "skill";
+      b.id = "sk_" + s.id;
+      b.innerHTML = '<div class="key">' + s.key + '</div><div class="ico">' + s.ico + '</div><div class="sn">' + s.name + '</div><div class="cd hidden" id="cd_' + s.id + '"></div>';
+      b.title = s.desc + " (Lv." + s.level + ")";
+      b.onclick = () => onSkill(s.id);
+      bar.appendChild(b);
+    });
+  }
+
+  function onSkill(id) {
+    if (state.mode !== "play") return;
+    if (!unlocked(id)) return;
+    cast(id);
+  }
+
+  function toggleHunt() {
+    if (state.mode !== "play" || !state.player) return;
+    state.player.autoHunt = !state.player.autoHunt;
+    toast(state.player.autoHunt ? "자동사냥 ON" : "자동사냥 OFF — 직접 괴롭히세요");
+  }
+
+  function syncHud() {
+    const p = state.player;
+    if (!p) return;
+    document.getElementById("nameLine").innerHTML = "<b>[" + (titleRank(p.fame) + 1) + "등급 · " + p.title + "]</b> " + p.name;
+    document.getElementById("powEl").textContent = Math.floor(p.devilPower);
+    document.getElementById("fameEl").textContent = Math.floor(p.fame);
+    document.getElementById("killEl").textContent = p.kills;
+    document.getElementById("xpFill").style.width = Math.min(100, (p.xp / p.xpNext) * 100) + "%";
+    document.getElementById("xpLabel").textContent = "Lv." + p.level + "  " + Math.floor(p.xp) + "/" + p.xpNext;
+    const rankEl = document.getElementById("rankLabel");
+    if (rankEl) {
+      const ri = titleRank(p.fame);
+      const next = TITLES[ri + 1];
+      rankEl.textContent = next
+        ? (ri + 1) + "등급 · 다음 " + next.name + " " + Math.floor(p.fame) + "/" + next.fame
+        : (ri + 1) + "등급 · 최고 등급";
+    }
+    const cur = runScore(p);
+    const best = state.bestScore || (loadBest() && loadBest().score) || 0;
+    document.getElementById("bestHud").textContent = "이번 " + cur + "점 · 최고 " + Math.max(best, cur) + "점";
+    document.getElementById("hpFill").style.width = Math.max(0, (p.hp / p.maxHp) * 100) + "%";
+    document.getElementById("hpLabel").textContent = Math.max(0, Math.ceil(p.hp)) + "/" + Math.ceil(p.maxHp);
+    const candyEl = document.getElementById("candyLabel");
+    if (candyEl) candyEl.textContent = "사탕 " + (state.candy || 0) + " · Q 먹기";
+    const eatBtn = document.getElementById("eatBtn");
+    if (eatBtn) eatBtn.textContent = "사탕 " + (state.candy || 0) + "개 (Q)";
+    const ratio = p.hp / p.maxHp;
+    const hpFill = document.getElementById("hpFill");
+    hpFill.classList.toggle("low", ratio < 0.34);
+    hpFill.classList.toggle("mid", ratio >= 0.34 && ratio < 0.62);
+    const on = !!p.autoHunt;
+    document.getElementById("huntLabel").textContent = on ? "자동사냥 ON" : "자동사냥 OFF";
+    document.getElementById("huntBtn").textContent = on ? "자동사냥: ON" : "자동사냥: OFF";
+    const duelEl = document.getElementById("duelLabel");
+    if (state.inDuel) duelEl.textContent = "결투 중! 지면 신입";
+    else {
+      const s = Math.max(0, Math.ceil(state.duelWait));
+      duelEl.textContent = "결투 " + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    }
+    document.getElementById("toast").textContent = state.toastT > 0 ? state.toast : "";
+    const comboEl = document.getElementById("comboHud");
+    if (state.combo >= 3) {
+      comboEl.classList.remove("hidden");
+      comboEl.textContent = "x" + state.combo + " 민원콤보";
+    } else comboEl.classList.add("hidden");
+    const evEl = document.getElementById("eventHud");
+    if (state.event) {
+      evEl.classList.remove("hidden");
+      evEl.textContent = state.event.name + "  " + Math.ceil(state.event.t) + "초";
+    } else evEl.classList.add("hidden");
+    const threatEl = document.getElementById("threatHud");
+    if (threatEl) {
+      const boss = state.enemies.find(e => e.boss && !e.dead);
+      const eliteN = state.enemies.filter(e => e.elite && !e.dead).length;
+      if (state.inDuel) threatEl.classList.add("hidden");
+      else if (boss) {
+        threatEl.classList.remove("hidden");
+        threatEl.textContent = "보스! " + boss.type.name + "  " + Math.ceil(Math.max(0, boss.hp)) + "/" + Math.ceil(boss.maxHp);
+      } else if (eliteN) {
+        threatEl.classList.remove("hidden");
+        threatEl.textContent = "정예 " + eliteN + "명 — 맞으면 아픔";
+      } else threatEl.classList.add("hidden");
+    }
+    const placeEl = document.getElementById("placeHud");
+    if (placeEl) {
+      const d = state.district;
+      let line = d ? d.name : "골목";
+      line = "시즌 " + (state.shift || 1) + " · " + line;
+      if (state.buff) line += " · " + (state.buff.id === "speed" ? "이속↑" : "공격↑") + " " + Math.ceil(state.buff.t) + "초";
+      if ((state.runPerks || []).length) line += " · 계약 " + state.runPerks.length;
+      placeEl.textContent = line;
+    }
+    const rankHud = document.getElementById("rankHud");
+    if (rankHud) {
+      const t = titleFor(p.fame);
+      const perk = perkLine(t);
+      rankHud.textContent = perk ? ("최근 특전: " + perk) : "특전: 아직 없음. 명성을 쌓으세요.";
+    }
+    const internEl = document.getElementById("internHud");
+    if (internEl) {
+      if (state.intern) {
+        internEl.classList.remove("hidden");
+        internEl.textContent = (state.intern.name || "수습악마") + " 출근 중";
+      } else internEl.classList.add("hidden");
+    }
+    const jobEl = document.getElementById("jobHud");
+    if (jobEl) {
+      if (state.job) {
+        const j = state.job;
+        jobEl.classList.remove("hidden");
+        const prog = j.kind === "survive" ? ("버티기 " + Math.ceil(j.t) + "초")
+          : (Math.min(j.prog, j.need) + "/" + j.need + " · " + Math.ceil(j.t) + "초");
+        jobEl.textContent = j.title + "  " + prog;
+      } else jobEl.classList.add("hidden");
+    }
+    SKILLS.forEach(s => {
+      const btn = document.getElementById("sk_" + s.id);
+      if (!btn) return;
+      const open = unlocked(s.id);
+      btn.classList.toggle("locked", !open);
+      btn.classList.toggle("active-on",
+        (s.id === "peel" && (state.peels || []).length > 0) ||
+        (s.id === "chat" && state.projectiles.some(pr => pr.kind === "chat")));
+      const cd = state.skillCd[s.id] || 0;
+      const cdel = document.getElementById("cd_" + s.id);
+      if (cdel) {
+        if (open && cd > 0.05) {
+          cdel.classList.remove("hidden");
+          cdel.textContent = cd.toFixed(1);
+        } else cdel.classList.add("hidden");
+      }
+    });
+  }
+
+  function canvasPos(ev) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: (ev.clientX - r.left) * (W / r.width),
+      y: (ev.clientY - r.top) * (H / r.height)
+    };
+  }
+
+  window.addEventListener("keydown", e => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key === "Escape") {
+      if (state.mode === "play") pause(true);
+      else if (state.mode === "pause") pause(false);
+    }
+    if (state.mode !== "play") return;
+    if (state.choice || state.contract) {
+      if (e.code === "Digit1") resolveChoice("a");
+      if (e.code === "Digit2") resolveChoice("b");
+      return;
+    }
+    if (e.code === "KeyQ") {
+      eatCandy(false);
+      return;
+    }
+    if (e.code === "Space") {
+      e.preventDefault();
+      toggleHunt();
+    }
+    const map = { Digit1: "scratch", Digit2: "peel", Digit3: "chat", Digit4: "sneeze",
+      Digit5: "mock", Digit6: "overtime", Digit7: "complaint", Digit8: "gimbap" };
+    if (map[e.code]) onSkill(map[e.code]);
+  });
+  window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+  canvas.addEventListener("mousedown", e => {
+    if (state.mode !== "play" || state.choice) return;
+    mouse.down = true;
+    const p = canvasPos(e);
+    mouse.x = p.x; mouse.y = p.y;
+    if (clickMap(p.x, p.y)) {
+      clickTarget = null;
+      return;
+    }
+    clickTarget = { x: p.x, y: p.y };
+  });
+  window.addEventListener("mouseup", () => { mouse.down = false; });
+  canvas.addEventListener("mousemove", e => {
+    const p = canvasPos(e);
+    mouse.x = p.x; mouse.y = p.y;
+  });
+
+  function pause(on) {
+    if (on) {
+      state.mode = "pause";
+      save();
+      document.getElementById("pauseScreen").classList.remove("hidden");
+    } else {
+      state.mode = "play";
+      document.getElementById("pauseScreen").classList.add("hidden");
+    }
+  }
+
+  function update(dt) {
+    if (state.mode !== "play") return;
+    if (state.choice || state.contract) {
+      state.choiceT = (state.choiceT == null ? 5 : state.choiceT) - dt;
+      syncChoiceTimer();
+      if (state.choiceT <= 0) {
+        resolveChoice(Math.random() < 0.5 ? "a" : "b", true);
+      }
+      syncHud();
+      return;
+    }
+    if (state.pendingContract && !state.inDuel) {
+      offerContract();
+      syncHud();
+      if (state.contract) return;
+    }
+    const p = state.player;
+    state.time += dt;
+    state.saveAcc += dt;
+    if (state.saveAcc > 3) { state.saveAcc = 0; save(); }
+    if (state.toastT > 0) state.toastT -= dt;
+    if (state.shake > 0) state.shake -= dt;
+    if (state.flash > 0) state.flash -= dt;
+    for (const k of Object.keys(state.skillCd)) {
+      state.skillCd[k] = Math.max(0, state.skillCd[k] - dt);
+    }
+
+    let ix = 0, iy = 0;
+    if (keys["w"] || keys["arrowup"]) iy -= 1;
+    if (keys["s"] || keys["arrowdown"]) iy += 1;
+    if (keys["a"] || keys["arrowleft"]) ix -= 1;
+    if (keys["d"] || keys["arrowright"]) ix += 1;
+    const spd = moveSpeed() * (state.fever > 0 ? 1.22 : 1);
+    const huntOn = !!p.autoHunt;
+    const tgt = nearestEnemy(p.x, p.y);
+
+    if (ix || iy) {
+      const n = Math.hypot(ix, iy) || 1;
+      p.vx = (ix / n) * spd;
+      p.vy = (iy / n) * spd;
+      clickTarget = null;
+    } else if (clickTarget) {
+      const dx = clickTarget.x - p.x, dy = clickTarget.y - p.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 8) clickTarget = null;
+      else { p.vx = (dx / d) * spd; p.vy = (dy / d) * spd; }
+    } else if (huntOn && tgt) {
+      const dx = tgt.x - p.x, dy = tgt.y - p.y;
+      const d = Math.hypot(dx, dy);
+      const danger = tgt.boss ? p.hp / p.maxHp < 0.46 : ((tgt.elite || tgt.rival) && p.hp / p.maxHp < 0.32);
+      const keep = tgt.boss ? 38 : 32;
+      if (danger && d < (tgt.boss ? 110 : 88)) {
+        p.vx = -(dx / (d || 1)) * spd;
+        p.vy = -(dy / (d || 1)) * spd;
+      } else if (d > keep) {
+        p.vx = (dx / d) * spd;
+        p.vy = (dy / d) * spd;
+      } else {
+        p.vx = 0;
+        p.vy = 0;
+      }
+    } else {
+      p.vx *= 0.8; p.vy *= 0.8;
+    }
+    p.x = Math.max(24, Math.min(W - 24, p.x + p.vx * dt));
+    p.y = Math.max(70, Math.min(H - 44, p.y + p.vy * dt));
+    if (Math.abs(p.vx) > 8) p.facing = p.vx > 0 ? 1 : -1;
+    p.walkT = (p.walkT || 0) + Math.hypot(p.vx, p.vy) * dt * 0.16;
+
+    if (huntOn) {
+      for (const s of SKILLS) {
+        if (s.auto && unlocked(s.id)) cast(s.id);
+      }
+    } else {
+      if (unlocked("scratch")) cast("scratch");
+    }
+
+    const rank = titleRank(p.fame);
+    const pr = pressure();
+    const rate = 0.9 - pr * 0.48;
+    state.spawnAcc += dt;
+    const cap = civilianCap();
+    const civ = state.enemies.filter(e => !e.rival && !e.elite && !e.boss).length;
+    if (state.spawnAcc > rate && civ < cap) {
+      state.spawnAcc = 0;
+      const burst = (civ < cap * 0.45) ? (pr < 0.2 ? 1 : 1 + Math.floor(pr * 3)) : 1;
+      const room = cap - civ;
+      for (let i = 0; i < Math.min(burst, room); i++) spawnEnemy();
+    }
+
+    if (!state.inDuel) {
+      state.eliteWait -= dt;
+      if (state.eliteWait <= 0) {
+        if (pr < 0.24) {
+          state.eliteWait = 10;
+        } else {
+          const n = state.enemies.filter(e => e.elite && !e.dead).length;
+          const maxE = pr < 0.5 ? 1 : (pr < 0.78 ? 2 : 3);
+          if (n < maxE) spawnTough("elite");
+          if (pr >= 0.62 && n + 1 < maxE && Math.random() < 0.3) spawnTough("elite");
+          state.eliteWait = Math.max(10, 18 - pr * 6 - (state.shift || 1) * 0.35);
+        }
+      }
+      state.bossWait -= dt;
+      if (state.bossWait <= 0) {
+        if (pr < 0.42) {
+          state.bossWait = 14;
+        } else {
+          if (!state.enemies.some(e => e.boss && !e.dead)) spawnTough("boss");
+          state.bossWait = 28 - pr * 6 + Math.random() * 8 - Math.min(6, (state.shift || 1) * 0.4);
+        }
+      }
+    }
+
+    let civHits = [];
+    for (const e of state.enemies) {
+      const dx = p.x - e.x, dy = p.y - e.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist < 420 || e.hitFlash > 0 || e.elite || e.boss || e.rival) e.alerted = true;
+      let wishX = 0, wishY = 0;
+      const ev = state.event && state.event.id;
+      let act = "charge";
+      if (ev === "dance") act = "wander";
+      else if (ev === "audit") act = "charge";
+      const pat = ev === "dance" ? "wander" : (e.pattern || "charge");
+      const nx = -dy / dist, ny = dx / dist;
+      const side = e.orbitDir || 1;
+      let spdMul = 1;
+      wishX = dx / dist;
+      wishY = dy / dist;
+      if (ev === "dance") {
+        wishX = Math.sin(state.time * 8 + e.x * 0.01);
+        wishY = Math.cos(state.time * 9 + e.y * 0.01);
+      } else if (pat === "zigzag") {
+        wishX = dx / dist + nx * Math.sin(state.time * 7 + e.seed) * 0.55;
+        wishY = dy / dist + ny * Math.sin(state.time * 7 + e.seed) * 0.55;
+      } else if (pat === "dash") {
+        e.dashT = (e.dashT == null ? 0.7 : e.dashT) - dt;
+        if (e.dashT > 0.32) spdMul = 1.85;
+        else if (e.dashT > 0) spdMul = 0.45;
+        else e.dashT = 0.85 + Math.random() * 0.5;
+      } else if (pat === "flank") {
+        if (dist > 70) {
+          wishX = dx / dist * 0.78 + nx * side * 0.55;
+          wishY = dy / dist * 0.78 + ny * side * 0.55;
+        }
+      }
+      for (const o of state.enemies) {
+        if (o === e) continue;
+        const ox = e.x - o.x, oy = e.y - o.y;
+        const od2 = ox * ox + oy * oy;
+        if (od2 < 900 && od2 > 4) {
+          const od = Math.sqrt(od2);
+          wishX += (ox / od) * 0.22;
+          wishY += (oy / od) * 0.22;
+        }
+      }
+      const wn = Math.hypot(wishX, wishY) || 1;
+      wishX /= wn;
+      wishY /= wn;
+      const slow = ev === "blackout" ? 0.45 : (ev === "dance" ? 0.35 : 1);
+      const tough = e.boss ? 1.1 : (e.elite ? 1.18 : 1);
+      e.x += wishX * e.type.speed * slow * tough * spdMul * dt;
+      e.y += wishY * e.type.speed * slow * tough * spdMul * dt;
+      if (e.x <= 24) { e.x = 24; e.orbitDir = 1; }
+      if (e.x >= W - 24) { e.x = W - 24; e.orbitDir = -1; }
+      if (e.y <= 62) { e.y = 62; }
+      if (e.y >= H - 30) { e.y = H - 30; }
+      if (Math.abs(wishX) > 0.08) e.facing = wishX > 0 ? 1 : -1;
+      e.walkT = (e.walkT || 0) + Math.hypot(wishX, wishY) * e.type.speed * dt * 0.16;
+      e.tripT = (e.tripT || 0) - dt;
+      if (e.tripT <= 0 && Math.random() < dt * 0.16) e.tripT = 0.28;
+      e.quoteT -= dt;
+      if (e.quoteT <= 0) {
+        e.quoteT = 3.5 + Math.random() * 3;
+        bubble(e.x, e.y - 46, e.type.quotes[Math.floor(Math.random() * e.type.quotes.length)]);
+      }
+      if (e.hitFlash > 0) e.hitFlash -= dt;
+      if (e.hitGate > 0) e.hitGate -= dt;
+      if (e.mock > 0) {
+        e.mock -= dt;
+        const mockCap = e.boss ? 0.022 : (e.elite ? 0.045 : 0.12);
+        e.hp -= Math.min(dmg() * 0.08, e.maxHp * mockCap) * dt;
+        if (Math.random() < dt * 2) addFame(0.4);
+        if (e.hp <= 0) killEnemy(e, 1.65);
+      }
+      e.shotT = (e.shotT == null ? 0.8 : e.shotT) - dt;
+      if (!state.inDuel && (e.elite || e.boss) && e.type.ranged && e.shotT <= 0 && dist < 460) {
+        const phase = gamePhase();
+        e.shotT = (e.boss ? 1.15 : 1.6) * (phase === "mid" ? 0.78 : (phase === "late" ? 0.65 : 1));
+        const sp = e.boss ? 260 : 210;
+        const rankD = rankNorm(p.fame);
+        const shotMul = phase === "early" ? 0.85 : (phase === "mid" ? 1.15 : 1.28);
+        state.hostile.push({
+          x: e.x, y: e.y - 8,
+          vx: (dx / dist) * sp, vy: (dy / dist) * sp,
+          r: e.boss ? 9 : 6,
+          dmg: (e.boss ? (p.maxHp * (0.09 + rankD * 0.084) + 8) : (p.maxHp * (0.055 + rankD * 0.07) + 5)) * shotMul,
+          life: 2.5,
+          color: e.type.color || "#ffe08a"
+        });
+        bubble(e.x, e.y - 46, e.type.quotes[Math.floor(Math.random() * e.type.quotes.length)]);
+      }
+      if (dist < p.r + e.r + 8) {
+        if (!(state.inDuel && !e.rival)) {
+          const focus = state.enemies.some(x => !x.dead && (x.elite || x.boss || x.rival));
+          const phase = gamePhase();
+          const pr = pressure();
+          const dps = e.rival
+            ? (p.maxHp * 0.05 + 5)
+            : e.boss
+              ? (p.maxHp * (0.062 + pr * 0.032) + 8)
+              : e.elite
+                ? (p.maxHp * (0.048 + pr * 0.028) + 6)
+                : (act === "charge"
+                  ? (p.maxHp * (0.026 + pr * 0.03) + 3)
+                  : (p.maxHp * (0.015 + pr * 0.016) + 2));
+          if (focus && !e.elite && !e.boss && !e.rival) {
+            if (phase === "late") civHits.push(dps * 0.55);
+          } else if (e.elite || e.boss || e.rival) {
+            hurtPlayer(dps * dt * (e.rival ? 1 : rankPerks().eliteTaken));
+          } else {
+            civHits.push(dps);
+          }
+        }
+      }
+    }
+    civHits.sort((a, b) => b - a);
+    const civN = gamePhase() === "late" ? 2 : 1;
+    let civDps = 0;
+    for (let i = 0; i < Math.min(civN, civHits.length); i++) civDps += civHits[i];
+    if (civDps > 0) hurtPlayer(civDps * dt);
+    state.enemies = state.enemies.filter(e => !e.dead && e.hp > 0);
+
+    if (!state.peels) state.peels = [];
+    for (const peel of state.peels) {
+      peel.t -= dt;
+      for (const e of state.enemies) {
+        if (e.dead || (e.slipLock || 0) > 0) continue;
+        if (Math.hypot(e.x - peel.x, e.y - peel.y) < e.r + peel.r) {
+          e.tripT = 0.95;
+          e.slipLock = 1.1;
+          const ang = Math.atan2(e.y - peel.y, e.x - peel.x);
+          e.x += Math.cos(ang) * 30;
+          e.y += Math.sin(ang) * 30;
+          hurtEnemy(e, dmg() * 1.35, 1.2);
+          floatText(e.x, e.y - 24, "미끄러짐!", "#ffe066");
+          bubble(e.x, e.y - 46, "바닥이 바나나인데요");
+          jobProgress("peel", 1);
+          peel.t = 0;
+          burst(peel.x, peel.y, "#ffe066", 8);
+          beep(180, 0.08, "triangle", 0.04);
+          break;
+        }
+      }
+    }
+    state.peels = state.peels.filter(peel => peel.t > 0);
+    for (const e of state.enemies) {
+      if ((e.slipLock || 0) > 0) e.slipLock -= dt;
+    }
+
+    ensureIntern(false);
+    if ((state.internBuff || 0) > 0) state.internBuff -= dt;
+    if (state.intern && p) {
+      const it = state.intern;
+      const tx = p.x - p.facing * 38;
+      const ty = p.y + 10;
+      const dx = tx - it.x, dy = ty - it.y;
+      const d = Math.hypot(dx, dy);
+      const isp = 210;
+      if (d > 10) {
+        it.x += (dx / d) * isp * dt;
+        it.y += (dy / d) * isp * dt;
+      }
+      if (Math.abs(dx) > 4) it.facing = dx > 0 ? 1 : -1;
+      it.walkT = (it.walkT || 0) + Math.min(d, 80) * dt * 0.16;
+      it.atk -= dt;
+      it.quoteT = (it.quoteT || 3) - dt;
+      if (it.quoteT <= 0) {
+        it.quoteT = 5 + Math.random() * 4;
+        bubble(it.x, it.y - 40, INTERN_LINES[Math.floor(Math.random() * INTERN_LINES.length)]);
+      }
+      const foe = nearestEnemy(it.x, it.y);
+      const boost = (state.internBuff || 0) > 0 ? 1.55 : 1;
+      if (foe && it.atk <= 0 && Math.hypot(foe.x - it.x, foe.y - it.y) < 40) {
+        hurtEnemy(foe, dmg() * 0.38 * boost, 1);
+        burst((it.x + foe.x) / 2, (it.y + foe.y) / 2, "#7ec8ff", 5);
+        it.atk = (state.internBuff || 0) > 0 ? 0.42 : 0.72;
+        it.atkAnim = 0.2;
+        it.facing = foe.x >= it.x ? 1 : -1;
+      }
+      if ((it.atkAnim || 0) > 0) it.atkAnim -= dt;
+    }
+
+    const mag = magnetR();
+    for (const it of state.items) {
+      it.t += dt;
+      const dx = p.x - it.x, dy = p.y - it.y;
+      const d = Math.hypot(dx, dy);
+      if (d < mag) {
+        const pull = 220 + mag;
+        it.x += (dx / (d || 1)) * pull * dt;
+        it.y += (dy / (d || 1)) * pull * dt;
+      }
+      if (d < 18) {
+        it.got = true;
+        addPower(it.type.pow);
+        addFame(it.type.fame);
+        addXp(it.type.xp);
+        if (it.type.id === "candy") {
+          addCandy(1);
+          healPlayer(8);
+        } else if (it.type.heal > 0) healPlayer(it.type.heal);
+        if (it.type.fx === "dice") {
+          const n = 1 + Math.floor(Math.random() * 6);
+          if (n >= 5) { healPlayer(28); toast("주사위 " + n + "! 체력 보너스"); }
+          else if (n === 1) { spawnEnemy(true); toast("주사위 1... 황금 알바가 나옴"); }
+          else { addXp(8 * n); toast("주사위 " + n + ". 경험치 쪼가리"); }
+        }
+        if (it.type.fx === "ticket") {
+          if (Math.random() < 0.4) { addFame(24); toast("복권 당첨. 세금은 나중에."); }
+          else toast("복권 꽝. 그래도 용돈은 됨.");
+        }
+        if (state.event && state.event.id === "recycle" && (it.type.id === "card" || it.type.id === "ticket" || it.type.color === "#ffd166")) {
+          addFame(10);
+          addXp(10);
+          floatText(it.x, it.y - 16, "분리수거 합격", "#ffd166");
+        }
+        floatText(it.x, it.y, it.type.name + (it.type.heal ? " +" + it.type.heal : ""), it.type.color);
+        beep(640, 0.05, "triangle", 0.03);
+        jobProgress("loot", 1);
+      }
+    }
+    state.items = state.items.filter(it => !it.got);
+
+    for (const pr of state.projectiles) {
+      if (pr.kind === "chat") {
+        if (!pr.target || pr.target.dead) { pr.life = 0; continue; }
+        const dx = pr.target.x - pr.x, dy = pr.target.y - pr.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const sp = 560;
+        pr.vx = (dx / d) * sp;
+        pr.vy = (dy / d) * sp;
+        pr.x += pr.vx * dt;
+        pr.y += pr.vy * dt;
+        pr.life -= dt;
+        if (d < pr.target.r + 14 || pr.first) {
+          pr.first = false;
+          hurtEnemy(pr.target, pr.dmg, 1.15);
+          bubble(pr.target.x, pr.target.y - 30, CHAT_LINES[Math.floor(Math.random() * CHAT_LINES.length)]);
+          floatText(pr.target.x, pr.target.y - 18, "카톡!", "#ffe08a");
+          addFame(2);
+          jobProgress("chat", 1);
+          burst(pr.target.x, pr.target.y, "#ffe08a", 6);
+          if (!pr.visited) pr.visited = [];
+          if (pr.visited.indexOf(pr.target) < 0) pr.visited.push(pr.target);
+          const hops = (pr.hops || 1) - 1;
+          let next = null, nd = 9999;
+          if (hops > 0) {
+            for (const e of state.enemies) {
+              if (e.dead || pr.visited.indexOf(e) >= 0) continue;
+              const dd = Math.hypot(e.x - pr.target.x, e.y - pr.target.y);
+              if (dd < 220 && dd < nd) { nd = dd; next = e; }
+            }
+          }
+          if (next) {
+            pr.target = next;
+            pr.hops = hops;
+            pr.visited.push(next);
+            pr.life = 1.2;
+          } else pr.life = 0;
+        }
+        continue;
+      }
+      pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.life -= dt;
+      for (const e of state.enemies) {
+        if (Math.hypot(e.x - pr.x, e.y - pr.y) < e.r + pr.r) {
+          hurtEnemy(e, pr.dmg, 1);
+          pr.life = 0;
+          burst(pr.x, pr.y, "#ff8a3d", 8);
+          break;
+        }
+      }
+    }
+    state.projectiles = state.projectiles.filter(pr => pr.life > 0);
+
+    for (const h of state.hostile) {
+      h.x += h.vx * dt;
+      h.y += h.vy * dt;
+      h.life -= dt;
+      if (Math.hypot(h.x - p.x, h.y - p.y) < p.r + h.r) {
+        if (!state.inDuel) hurtPlayer(h.dmg);
+        burst(h.x, h.y, h.color, 8);
+        floatText(h.x, h.y - 10, "서류탄!", "#ffe08a");
+        h.life = 0;
+      }
+    }
+    state.hostile = state.hostile.filter(h => h.life > 0 && h.x > -40 && h.x < W + 40 && h.y > -40 && h.y < H + 40);
+
+    for (const f of state.floats) { f.t -= dt; f.y += f.vy * dt; }
+    state.floats = state.floats.filter(f => f.t > 0);
+    for (const q of state.particles) { q.t -= dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 80 * dt; }
+    state.particles = state.particles.filter(q => q.t > 0);
+    for (const b of state.bubbles) b.t -= dt;
+    state.bubbles = state.bubbles.filter(b => b.t > 0);
+
+    state.quoteAcc += dt;
+    if (state.quoteAcc > 7) {
+      state.quoteAcc = 0;
+      bubble(p.x, p.y - 48, DEVIL_QUOTES[Math.floor(Math.random() * DEVIL_QUOTES.length)]);
+    }
+    state.comboT -= dt;
+    if (state.comboT <= 0) state.combo = 0;
+    if (state.fever > 0) state.fever -= dt;
+    if (state.buff) {
+      state.buff.t -= dt;
+      if (state.buff.t <= 0) {
+        toast("버프가 끝났습니다. 근육이 퇴근했습니다.");
+        state.buff = null;
+      }
+    }
+
+    if (!state.inDuel) {
+      state.shiftWait = (state.shiftWait == null ? 85 : state.shiftWait) - dt;
+      if (state.shiftWait <= 0) {
+        state.shift = (state.shift || 1) + 1;
+        state.shiftWait = Math.max(55, 90 - state.shift * 2);
+        announce("근무 시즌 " + state.shift, "동네가 더 험해졌습니다. 시즌이 오를수록 압박이 커집니다.");
+        toast("시즌 " + state.shift + " 시작. 정예가 더 자주 옵니다.");
+        const n = 1 + Math.min(3, Math.floor(state.shift / 3));
+        for (let i = 0; i < n; i++) spawnEnemy();
+        if (state.shift % 3 === 0) spawnTough("elite");
+        if (state.shift % 5 === 0 && pressure() >= 0.42) spawnTough("boss");
+        if (state.shift % 4 === 0) changeDistrict();
+        beep(150, 0.12, "sawtooth", 0.05);
+      }
+      state.districtWait -= dt;
+      if (state.districtWait <= 0) changeDistrict();
+      if (state.job) {
+        state.job.t -= dt;
+        if (state.job.kind === "combo") {
+          state.job.prog = state.combo || 0;
+          if (state.job.prog >= state.job.need) completeJob();
+        }
+        if (state.job && state.job.t <= 0) {
+          if (state.job.kind === "survive") completeJob();
+          else failJob();
+        }
+      } else {
+        state.jobWait -= dt;
+        if (state.jobWait <= 0) startJob();
+      }
+      state.choiceWait -= dt;
+      if (state.choiceWait <= 0) offerChoice();
+      state.gagWait -= dt;
+      if (state.gagWait <= 0) {
+        state.gagWait = 10 + Math.random() * 8;
+        const d = state.district;
+        if (d && !state.event) toast(d.gags[Math.floor(Math.random() * d.gags.length)]);
+      }
+    }
+
+    if (!state.traffic) state.traffic = [];
+    if (!state.inDuel && Math.random() < dt * 0.7) {
+      const left = Math.random() < 0.5;
+      state.traffic.push({
+        x: left ? -60 : W + 60,
+        y: 506 + Math.random() * 20,
+        vx: (left ? 1 : -1) * (150 + Math.random() * 110),
+        kind: Math.random() < 0.5 ? "bike" : "car",
+        color: ["#e07a2f", "#3d7ea6", "#c41e3a", "#ffd166", "#4aaa6a"][Math.floor(Math.random() * 5)]
+      });
+    }
+    for (const v of state.traffic) v.x += v.vx * dt;
+    if ((state.hijackCd || 0) > 0) state.hijackCd -= dt;
+    if (!state.inDuel && p) {
+      for (const v of state.traffic) {
+        if (v.kind !== "bike" || v.looted) continue;
+        if (Math.hypot(p.x - v.x, p.y - (v.y + 4)) < 34 && (state.hijackCd || 0) <= 0) {
+          v.looted = true;
+          state.hijackCd = 2.4;
+          addCandy(1);
+          addFame(3);
+          dropItem(v.x, v.y);
+          floatText(v.x, v.y - 18, "가로채기!", "#e07a2f");
+          toast("택배 가로채기! 수취인 아님. 사탕 +1");
+          jobProgress("loot", 1);
+          jobProgress("hijack", 1);
+          beep(400, 0.06, "square", 0.04);
+          break;
+        }
+      }
+    }
+    state.traffic = state.traffic.filter(v => v.x > -90 && v.x < W + 90);
+
+    if (state.event && state.event.id === "cctv") {
+      state.cctvAcc = (state.cctvAcc || 0) + dt;
+      if (state.cctvAcc > 0.85) {
+        state.cctvAcc = 0;
+        const moving = Math.hypot(p.vx, p.vy) > 48;
+        if (moving) {
+          addFame(-2);
+          floatText(p.x, p.y - 58, "과태료", "#ff8a8a");
+        } else {
+          addFame(5);
+          floatText(p.x, p.y - 58, "CCTV 포착", "#ffd166");
+        }
+      }
+    }
+    if (state.event && state.event.id === "kakao") {
+      state.kakaoAcc = (state.kakaoAcc || 0) + dt;
+      if (state.kakaoAcc > 0.55 && state.enemies.length) {
+        state.kakaoAcc = 0;
+        const a = state.enemies[Math.floor(Math.random() * state.enemies.length)];
+        if (a && !a.dead) {
+          hurtEnemy(a, dmg() * 0.55, 1.1);
+          bubble(a.x, a.y - 30, CHAT_LINES[Math.floor(Math.random() * CHAT_LINES.length)]);
+          addFame(1.5);
+          jobProgress("chat", 1);
+        }
+      }
+    }
+
+    if (state.event) {
+      state.event.t -= dt;
+      if (state.event.t <= 0) state.event = null;
+    } else if (!state.inDuel) {
+      state.eventWait -= dt;
+      if (state.eventWait <= 0) {
+        startChaos();
+        state.eventWait = (gamePhase() === "early" ? 14 : 8) + Math.random() * 6;
+      }
+    }
+
+    p.lastHit = (p.lastHit == null ? 99 : p.lastHit) + dt;
+    if ((p.atkT || 0) > 0) {
+      p.atkT = Math.max(0, p.atkT - dt);
+      if (p.atkT <= 0) p.atkKind = null;
+    }
+    if ((state.eatCd || 0) > 0) state.eatCd -= dt;
+    if ((state.storeCd || 0) > 0) state.storeCd -= dt;
+    if (!state.inDuel && inStore(p)) {
+      const hm = rankPerks().heal;
+      healPlayer((9 + p.level * 0.28 + p.maxHp * (0.022 + rankNorm(p.fame) * 0.018)) * hm * dt);
+    }
+    if (!state.inDuel && inTree(p)) {
+      healPlayer((7 + p.level * 0.2 + p.maxHp * 0.01 * rankNorm(p.fame)) * rankPerks().heal * dt);
+      jobProgress("tree", 1);
+    }
+    if (p.hp / p.maxHp < (0.32 + (titleRank(p.fame) >= 10 ? 0.08 : 0))) eatCandy(true);
+    const threatUp = state.enemies.some(e => e.elite || e.boss || e.rival);
+    const midHeal = titleRank(p.fame) >= 10;
+    const healDelay = gamePhase() === "early" ? 3.2 : (threatUp ? (midHeal ? 4.2 : 5.2) : (midHeal ? 2.8 : 3.6));
+    const healRate = gamePhase() === "early"
+      ? (7 + p.level * 0.2)
+      : ((midHeal ? 5.2 : 3.6) + p.level * 0.12 + p.maxHp * (midHeal ? 0.014 : 0.006));
+    if (!state.inDuel && p.lastHit > healDelay && p.hp < p.maxHp) {
+      healPlayer(healRate * rankPerks().heal * dt);
+    }
+
+    if (!state.inDuel) {
+      state.duelWait -= dt;
+      if (state.duelWait <= 0) spawnRival();
+    } else {
+      state.duelGagT -= dt;
+      if (state.duelGagT <= 0) {
+        state.duelGagT = 7 + Math.random() * 3;
+        toast(DUEL_GAGS[Math.floor(Math.random() * DUEL_GAGS.length)]);
+      }
+      if (!state.enemies.some(e => e.rival && !e.dead)) {
+        state.inDuel = false;
+        state.duelWait = gamePhase() === "early" ? 65 : 40;
+      }
+    }
+
+    state.hpPoolT += dt;
+    if (state.hpPoolT > 0.35) {
+      state.hpPoolT = 0;
+      if (state.hpDmgPool >= 1) {
+        floatText(p.x - 10, p.y - 54, "-" + Math.floor(state.hpDmgPool) + " 체력", "#ff6b6b");
+        state.hpDmgPool = 0;
+      }
+      if (state.hpHealPool >= 1) {
+        floatText(p.x + 16, p.y - 54, "+" + Math.floor(state.hpHealPool) + " 회복", "#7cffb2");
+        state.hpHealPool = 0;
+      }
+    }
+
+    if (p.hp <= 0) {
+      p.hp = 0;
+      state.mode = "dead";
+      if (state.inDuel) {
+        state.wipeOnRevive = true;
+        document.getElementById("deadTitle").textContent = "이직 실패";
+        document.getElementById("deadMsg").textContent =
+          "다른 악마에게 졌습니다. 경력은 휴지통으로, 신입부터 다시입니다.";
+        document.getElementById("reviveBtn").textContent = "신입부터 다시";
+      } else {
+        state.wipeOnRevive = false;
+        const slayer = state.enemies.find(e => e.boss && !e.dead) || state.enemies.find(e => e.elite && !e.dead);
+        document.getElementById("deadTitle").textContent = slayer ? "강한 적에게 밀림" : "기절했다";
+        document.getElementById("deadMsg").textContent = slayer
+          ? (slayer.type.name + " 에게 정면으로 맞았습니다. 경력은 남지만 체면은 없습니다.")
+          : "체력이 바닥났습니다. 사탕을 안 먹어서 민원에 치였습니다.";
+        document.getElementById("reviveBtn").textContent = "지옥 인턴십으로 복직";
+      }
+      document.getElementById("deadScreen").classList.remove("hidden");
+      updateBest(true);
+      const best = loadBest();
+      const now = snapshotBest(p);
+      const deadBest = document.getElementById("deadBest");
+      if (deadBest) {
+        deadBest.innerHTML = "이번 " + now.score + "점 · Lv." + now.level + " · 처치 " + now.kills
+          + "<br>" + formatBest(best);
+      }
+      if (state.inDuel || state.wipeOnRevive) localStorage.removeItem(SAVE_KEY);
+      else save();
+    }
+    syncHud();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawBg() {
+    const d = state.district || DISTRICTS[0];
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, d.sky0 || "#1b0a24");
+    g.addColorStop(0.55, d.sky1 || "#2a1230");
+    g.addColorStop(1, "#1a1014");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#141018";
+    ctx.fillRect(0, 470, W, 250);
+    ctx.fillStyle = d.id === "park" ? "#2a4030" : (d.id === "market" ? "#3a2a22" : "#2a2a32");
+    ctx.fillRect(0, 500, W, 70);
+    ctx.fillStyle = d.id === "hall" ? "#c8c0a0" : "#d4c36a";
+    for (let x = 20; x < W; x += 70) ctx.fillRect(x, 532, 34, 6);
+
+    const buildings = d.id === "park"
+      ? [[40, 280, 90, 220, "#1a3024"], [1140, 270, 90, 230, "#183028"]]
+      : d.id === "hall"
+      ? [[40, 240, 100, 260, "#2a2438"], [1140, 250, 90, 250, "#282030"]]
+      : [
+        [40, 220, 110, 280, "#2a1a38"],
+        [170, 180, 130, 320, "#241430"],
+        [820, 160, 160, 340, "#2c1634"],
+        [1000, 210, 120, 290, "#201028"],
+        [1140, 250, 90, 250, "#281434"]
+      ];
+    for (const b of buildings) {
+      ctx.fillStyle = b[4];
+      ctx.fillRect(b[0], b[1], b[2], b[3]);
+      ctx.fillStyle = "#ffd27a";
+      for (let yy = b[1] + 16; yy < b[1] + b[3] - 20; yy += 22) {
+        for (let xx = b[0] + 10; xx < b[0] + b[2] - 10; xx += 18) {
+          if (((xx + yy) | 0) % 5 !== 0) ctx.fillRect(xx, yy, 8, 10);
+        }
+      }
+    }
+
+    if (d.id === "park") {
+      ctx.fillStyle = "#2f6a3a";
+      ctx.beginPath(); ctx.arc(980, 430, 36, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(1080, 450, 28, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(900, 460, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#c45c20";
+      ctx.fillRect(240, 420, 10, 80);
+      ctx.fillStyle = "#e07a2f";
+      ctx.beginPath(); ctx.moveTo(250, 420); ctx.lineTo(340, 500); ctx.lineTo(250, 500); ctx.fill();
+      ctx.fillStyle = "#c9a06a";
+      ctx.fillRect(150, 498, 100, 14);
+    } else if (d.id === "apt") {
+      ctx.fillStyle = "#1c2448";
+      ctx.fillRect(300, 140, 100, 360);
+      ctx.fillRect(640, 120, 90, 380);
+      ctx.fillStyle = "#ffd27a";
+      for (let yy = 160; yy < 480; yy += 22) {
+        for (let xx = 312; xx < 390; xx += 18) if (((xx + yy) | 0) % 5) ctx.fillRect(xx, yy, 8, 10);
+        for (let xx = 652; xx < 720; xx += 18) if (((xx + yy) | 0) % 4) ctx.fillRect(xx, yy, 8, 10);
+      }
+    } else if (d.id === "hall") {
+      ctx.fillStyle = "#3a3848";
+      ctx.fillRect(250, 220, 280, 280);
+      ctx.fillStyle = "#5a5868";
+      ctx.beginPath(); ctx.moveTo(240, 220); ctx.lineTo(390, 150); ctx.lineTo(540, 220); ctx.fill();
+      ctx.fillStyle = "#c41e3a";
+      ctx.fillRect(378, 158, 6, 50);
+      ctx.fillStyle = "#ffd166";
+      ctx.font = "bold 16px Malgun Gothic";
+      ctx.textAlign = "left";
+      ctx.fillText("구청", 362, 252);
+      ctx.fillStyle = "#4a4860";
+      ctx.fillRect(270, 420, 40, 80);
+      ctx.fillRect(470, 420, 40, 80);
+    } else if (d.id === "market") {
+      const stalls = [[180, 400, "#c45c20"], [270, 408, "#e07a2f"], [760, 395, "#c41e3a"], [850, 405, "#ffd166"]];
+      for (const s of stalls) {
+        ctx.fillStyle = s[2];
+        ctx.fillRect(s[0], s[1], 74, 16);
+        ctx.fillStyle = "#2a1810";
+        ctx.fillRect(s[0] + 6, s[1] + 16, 62, 52);
+      }
+      ctx.fillStyle = "rgba(255,140,60,0.28)";
+      for (let i = 0; i < 8; i++) {
+        ctx.beginPath(); ctx.arc(180 + i * 130, 86, 11, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (d.id === "subway") {
+      ctx.fillStyle = "#1a2838";
+      ctx.fillRect(200, 300, 280, 170);
+      ctx.fillStyle = "#0a1018";
+      ctx.fillRect(230, 360, 90, 110);
+      ctx.fillRect(360, 360, 90, 110);
+      ctx.fillStyle = "#ffd166";
+      ctx.font = "bold 14px Malgun Gothic";
+      ctx.fillText("지하철", 300, 340);
+      ctx.fillStyle = "#3a4858";
+      ctx.fillRect(700, 420, 220, 50);
+    } else if (d.id === "school") {
+      ctx.fillStyle = "#2a4030";
+      ctx.fillRect(220, 200, 260, 270);
+      ctx.fillStyle = "#ffd27a";
+      for (let yy = 230; yy < 440; yy += 24) {
+        for (let xx = 240; xx < 460; xx += 28) if (((xx + yy) | 0) % 3) ctx.fillRect(xx, yy, 12, 14);
+      }
+      ctx.fillStyle = "#c41e3a";
+      ctx.fillRect(330, 400, 40, 70);
+      ctx.fillStyle = "#ffd166";
+      ctx.font = "bold 14px Malgun Gothic";
+      ctx.fillText("학교", 318, 250);
+    }
+
+    ctx.fillStyle = "#3a1c28";
+    roundRect(430, 360, 210, 140, 6); ctx.fill();
+    ctx.fillStyle = "#c41e3a";
+    ctx.fillRect(430, 360, 210, 28);
+    ctx.fillStyle = "#ffd166";
+    ctx.font = "bold 16px Malgun Gothic";
+    ctx.textAlign = "left";
+    ctx.fillText(d.store || "24시 편의점", 468, 380);
+    ctx.fillStyle = "#ffe08a";
+    ctx.font = "11px Malgun Gothic";
+    ctx.fillText("서 있으면 회복", 478, 396);
+    ctx.fillStyle = "#7ec8ff";
+    ctx.fillRect(450, 400, 50, 40);
+    ctx.fillRect(515, 400, 50, 40);
+    ctx.fillStyle = "#1a0a10";
+    ctx.fillRect(585, 410, 36, 90);
+
+    ctx.fillStyle = "#3a3320";
+    ctx.beginPath(); ctx.ellipse(70, 560, 50, 16, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2f6a3a";
+    ctx.beginPath(); ctx.arc(70, 530, 28, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = "rgba(255, 210, 120, 0.08)";
+    ctx.beginPath(); ctx.arc(1180, 70, 90, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#f5e6b8";
+    ctx.beginPath(); ctx.arc(1180, 70, 28, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    for (let i = 0; i < 18; i++) {
+      const sx = (i * 137) % W, sy = (i * 53) % 180;
+      ctx.fillRect(sx, sy + 20, 2, 2);
+    }
+
+    ctx.fillStyle = "#1a1018";
+    ctx.fillRect(18, 86, 7, 36);
+    ctx.fillStyle = "#ffd166";
+    roundRect(10, 62, 168, 28, 4); ctx.fill();
+    ctx.fillStyle = "#3a1800";
+    ctx.font = "bold 13px Malgun Gothic";
+    ctx.textAlign = "left";
+    ctx.fillText(d.name, 20, 81);
+
+    for (const v of (state.traffic || [])) {
+      ctx.fillStyle = v.color;
+      if (v.kind === "bike") {
+        ctx.fillRect(v.x, v.y, 28, 12);
+        ctx.beginPath(); ctx.arc(v.x + 6, v.y + 14, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(v.x + 22, v.y + 14, 5, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.fillRect(v.x, v.y - 4, 46, 16);
+        ctx.fillStyle = "#1a1014";
+        ctx.fillRect(v.x + 8, v.y - 1, 12, 8);
+        ctx.fillRect(v.x + 26, v.y - 1, 12, 8);
+      }
+    }
+  }
+
+  function mixHex(hex, amt) {
+    const raw = (hex || "#888888").replace("#", "");
+    const n = raw.length === 3 ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2] : raw;
+    const r = Math.max(0, Math.min(255, parseInt(n.slice(0, 2), 16) + amt));
+    const g = Math.max(0, Math.min(255, parseInt(n.slice(2, 4), 16) + amt));
+    const b = Math.max(0, Math.min(255, parseInt(n.slice(4, 6), 16) + amt));
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  function strokeLimb(ax, ay, bx, by, w, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+  }
+
+  const LOOKS = {
+    alba: { skin: "#efc3a4", shirt: "#3d7ea6", pants: "#243848", hair: "#2a1a14", hairKind: "short", hat: "cap", apron: true },
+    delivery: { skin: "#e8b892", shirt: "#e07a2f", pants: "#3a2a22", hair: "#1a1a1a", hairKind: "short", hat: "helmet", hold: "box" },
+    pt: { skin: "#e0a888", shirt: "#d44d6a", pants: "#2a2a32", hair: "#1c1410", hairKind: "short", band: true, bulky: true },
+    cafe: { skin: "#f0c7a8", shirt: "#6b5b95", pants: "#3d3550", hair: "#4a3020", hairKind: "bang", glasses: true, hold: "laptop" },
+    office: { skin: "#efc3a4", shirt: "#e8e8ee", pants: "#4a5568", hair: "#1a1a1a", hairKind: "short", tie: "#c41e3a", hold: "case" },
+    walker: { skin: "#f2c8b0", shirt: "#2f9e6a", pants: "#245a40", hair: "#3a2018", hairKind: "ponytail", dog: true },
+    youtuber: { skin: "#e8b892", shirt: "#e23d3d", pants: "#2a2020", hair: "#1a1a1a", hairKind: "messy", hold: "phone", hat: "beanie" },
+    resident: { skin: "#e0b090", shirt: "#c9a227", pants: "#6a5a30", hair: "#7a7a7a", hairKind: "puff", hold: "paper" },
+    official: { skin: "#efc3a4", shirt: "#2c5f8a", pants: "#1a3348", hair: "#1a1a1a", hairKind: "short", hat: "officer" },
+    good: { skin: "#f5d0b0", shirt: "#f0e6d0", pants: "#8a7a68", hair: "#6b4423", hairKind: "neat" },
+    student: { skin: "#efc3a4", shirt: "#5a8fd8", pants: "#243848", hair: "#1a1a1a", hairKind: "messy", hold: "case" },
+    ajumma: { skin: "#e8b892", shirt: "#d45c8a", pants: "#5a2840", hair: "#3a2018", hairKind: "puff", hold: "box" },
+    security: { skin: "#efc3a4", shirt: "#3a5a48", pants: "#1a3028", hair: "#1a1a1a", hairKind: "short", hat: "officer", hold: "case" },
+    influencer: { skin: "#f0c7a8", shirt: "#ff7eb0", pants: "#4a2038", hair: "#2a1018", hairKind: "bang", hold: "phone", glasses: true },
+    gold: { skin: "#f0d090", shirt: "#ffd166", pants: "#8a6a10", hair: "#5a4010", hairKind: "messy", hat: "cap", apron: true },
+    mayor: { skin: "#efc3a4", shirt: "#6a2040", pants: "#2a1020", hair: "#3a2010", hairKind: "neat", hat: "officer", hold: "paper" },
+    cat: { skin: "#f2c8b0", shirt: "#d8b070", pants: "#8a7048", hair: "#c9a06a", hairKind: "puff" },
+    chick: { skin: "#e8b892", shirt: "#e07a2f", pants: "#5a3010", hair: "#1a1a1a", hairKind: "short", hat: "helmet", hold: "box" },
+    ghost: { skin: "#d0d8e8", shirt: "#9aa8c8", pants: "#607088", hair: "#708098", hairKind: "neat", glasses: true, hold: "case" },
+    karen: { skin: "#efc3a4", shirt: "#c41e3a", pants: "#3a1020", hair: "#2a1a14", hairKind: "puff", hold: "paper", bulky: true },
+    lawyer: { skin: "#e8d8c8", shirt: "#2c2c48", pants: "#141428", hair: "#1a1a1a", hairKind: "neat", glasses: true, hold: "paper" },
+    dojang: { skin: "#e0a888", shirt: "#6a1a2a", pants: "#1a0a10", hair: "#1c1410", hairKind: "short", band: true, bulky: true },
+    inspector: { skin: "#efc3a4", shirt: "#1a4060", pants: "#0a2030", hair: "#1a1a1a", hairKind: "short", hat: "officer", hold: "case" },
+    wrecker: { skin: "#e0a888", shirt: "#8a4a20", pants: "#3a2010", hair: "#2a1810", hairKind: "short", hat: "helmet", bulky: true, hold: "box" },
+    noise: { skin: "#efc3a4", shirt: "#c45c20", pants: "#5a2810", hair: "#1a1a1a", hairKind: "messy", band: true },
+    landlord: { skin: "#e8c8b0", shirt: "#6a3048", pants: "#2a1828", hair: "#3a2020", hairKind: "neat", hold: "paper", bulky: true },
+    streamer: { skin: "#efc3a4", shirt: "#8a20a0", pants: "#2a1030", hair: "#1a0a18", hairKind: "messy", hold: "phone", glasses: true },
+    taxman: { skin: "#e8d8c8", shirt: "#2a4858", pants: "#142838", hair: "#1a1a1a", hairKind: "neat", glasses: true, hold: "case", hat: "officer" },
+    jang: { skin: "#e8b892", shirt: "#8a2038", pants: "#2a0814", hair: "#2a1010", hairKind: "neat", hat: "officer", hold: "paper", giant: true },
+    hq: { skin: "#d8c8e8", shirt: "#3a2060", pants: "#1a1028", hair: "#1a1020", hairKind: "neat", glasses: true, hold: "case", giant: true },
+    finalish: { skin: "#c45c6a", shirt: "#4a1024", pants: "#1a0508", hair: "#1a0508", hairKind: "spiky", hat: "beanie", giant: true },
+    clerk: { skin: "#efc3a4", shirt: "#1a5080", pants: "#0a2840", hair: "#1a1a1a", hairKind: "neat", glasses: true, hold: "paper", giant: true, hat: "officer" },
+    ceo: { skin: "#d07080", shirt: "#4a1028", pants: "#1a0508", hair: "#1a0508", hairKind: "spiky", horns: true, giant: true, bulky: true }
+  };
+
+  function drawHair(kind, color) {
+    ctx.fillStyle = color;
+    if (kind === "spiky") {
+      ctx.beginPath();
+      ctx.moveTo(-10, -28);
+      ctx.lineTo(-12, -44);
+      ctx.lineTo(-3, -32);
+      ctx.lineTo(2, -46);
+      ctx.lineTo(5, -31);
+      ctx.lineTo(12, -40);
+      ctx.lineTo(10, -27);
+      ctx.closePath();
+      ctx.fill();
+    } else if (kind === "ponytail") {
+      ctx.beginPath(); ctx.ellipse(0, -32, 10.2, 6.4, 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-12, -24, 3.6, 7.2, 0.5, 0, Math.PI * 2); ctx.fill();
+    } else if (kind === "bang") {
+      ctx.beginPath(); ctx.ellipse(1, -32, 10.4, 6.2, 0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-10, -28); ctx.quadraticCurveTo(2, -20, 11, -29); ctx.fill();
+    } else if (kind === "messy") {
+      ctx.beginPath(); ctx.ellipse(0, -32, 10.6, 6.8, -0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(-7, -38, 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(6, -39, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, -40, 2.4, 0, Math.PI * 2); ctx.fill();
+    } else if (kind === "puff") {
+      ctx.beginPath(); ctx.arc(-6, -34, 6.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(6, -33, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, -37, 5.4, 0, Math.PI * 2); ctx.fill();
+    } else if (kind === "neat") {
+      ctx.beginPath(); ctx.ellipse(-1, -32, 10, 6, 0.12, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.ellipse(0.8, -32, 10.2, 6.2, 0.18, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function drawPerson(x, y, facing, phase, look) {
+    const moving = look.moving;
+    const atkKind = look.atkKind || null;
+    const atkSwing = look.atkSwing || 0;
+    const swing = moving && atkSwing < 0.15 ? Math.sin(phase) * 11 : Math.sin(phase * 0.4) * 2;
+    const bob = moving ? Math.abs(Math.sin(phase * 2)) * 2.2 : Math.sin(phase * 0.5) * 0.4;
+    const bulky = look.giant ? 1.48 : (look.bulky ? 1.18 : 1);
+    let tilt = (moving ? Math.sin(phase * 0.65) * 0.16 : Math.sin(phase * 0.25) * 0.05) + (look.trip ? 0.45 : 0);
+    if (atkSwing > 0) {
+      if (atkKind === "scratch") tilt += atkSwing * 0.28;
+      else if (atkKind === "sneeze" || atkKind === "overtime" || atkKind === "gimbap") tilt -= atkSwing * 0.12;
+      else if (atkKind === "mock" || atkKind === "chat") tilt += atkSwing * 0.1;
+      else if (atkKind === "peel") tilt += atkSwing * 0.18;
+      else tilt += atkSwing * 0.15;
+    }
+    const face = look.devil ? "mischief" : (look.alerted ? "panic" : "ditzy");
+    const lunge = atkKind === "scratch" ? atkSwing * 7 : (atkKind === "gimbap" ? atkSwing * 3 : atkSwing * 2);
+    ctx.save();
+    ctx.translate(x + facing * lunge, y + bob + (look.trip ? 4 : 0) - (atkKind === "gimbap" ? atkSwing * 4 : 0));
+    ctx.rotate(tilt);
+    ctx.scale(facing * bulky, bulky);
+
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.beginPath(); ctx.ellipse(look.trip ? 4 : 0, 22, 13, 3.8, 0, 0, Math.PI * 2); ctx.fill();
+
+    if (look.wings) {
+      const wingKick = atkSwing * 8;
+      ctx.fillStyle = "rgba(80, 16, 36, 0.85)";
+      ctx.beginPath(); ctx.moveTo(-4, -8); ctx.quadraticCurveTo(-24 - wingKick, -22 - wingKick * 0.4, -14, 6); ctx.quadraticCurveTo(-6, 0, -3, -4); ctx.fill();
+    }
+    if (look.tail) {
+      const tw = Math.sin(phase * 1.3) * 6 + atkSwing * 4;
+      ctx.strokeStyle = look.tail;
+      ctx.lineWidth = 3.2;
+      ctx.beginPath(); ctx.moveTo(-2, 6); ctx.quadraticCurveTo(-18 + tw, 12, -8 + tw, 26); ctx.stroke();
+      ctx.fillStyle = look.tail;
+      ctx.beginPath(); ctx.moveTo(-8 + tw, 24); ctx.lineTo(0 + tw, 31); ctx.lineTo(-14 + tw, 30); ctx.fill();
+    }
+
+    const pant = look.pants;
+    const shirt = look.shirt;
+    const skin = look.skin;
+    strokeLimb(-3.2 * bulky, 7, -7 - swing * 0.5, 21, 4.6 * bulky, pant);
+    strokeLimb(3.2 * bulky, 7, 8 + swing * 0.55, 20, 4.6 * bulky, pant);
+    ctx.fillStyle = mixHex(pant, -30);
+    ctx.beginPath(); ctx.ellipse(-7 - swing * 0.5, 22.5, 5.2, 2.4, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(8 + swing * 0.55, 22.5, 5.4, 2.5, -0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff8ee";
+    ctx.fillRect(-9 - swing * 0.5, 20, 3.2, 2.2);
+
+    let handX = 11, handY = 4 - swing;
+    let backHandX = -12, backHandY = 4 + swing;
+    if (look.hold === "phone") { handX = 14; handY = -6; }
+    else if (look.hold === "laptop") { handX = 13; handY = 1; }
+    else if (look.hold === "paper") { handX = 13; handY = -4; }
+    else if (look.hold === "box") { handX = 13; handY = 2; }
+    else if (look.hold === "case") { handX = 12; handY = 9; }
+    else if (look.claw) { handX = 13; handY = 3 - swing; }
+
+    if (atkSwing > 0) {
+      if (atkKind === "scratch") {
+        handX = 10 + atkSwing * 18;
+        handY = 2 - atkSwing * 16;
+        backHandX = -10 - atkSwing * 4;
+        backHandY = 6 + atkSwing * 2;
+      } else if (atkKind === "sneeze") {
+        handX = 8 + atkSwing * 10;
+        handY = -2 - atkSwing * 10;
+        backHandX = -8;
+        backHandY = -4 - atkSwing * 8;
+      } else if (atkKind === "mock" || atkKind === "chat" || atkKind === "complaint") {
+        handX = 14 + atkSwing * 8;
+        handY = -8 - atkSwing * 10;
+        backHandX = -8;
+        backHandY = 2;
+      } else if (atkKind === "overtime" || atkKind === "gimbap") {
+        handX = 6 + atkSwing * 4;
+        handY = -14 - atkSwing * 8;
+        backHandX = -6 - atkSwing * 2;
+        backHandY = -12 - atkSwing * 8;
+      } else if (atkKind === "peel") {
+        handX = 8 + atkSwing * 4;
+        handY = 8 + atkSwing * 10;
+        backHandX = -10;
+        backHandY = 2;
+      }
+    }
+
+    strokeLimb(-6.5 * bulky, -8, backHandX, backHandY, 3.8 * bulky, shirt);
+    strokeLimb(6.5 * bulky, -8, handX, handY, 3.8 * bulky, shirt);
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(backHandX, backHandY, 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(handX, handY, 2.4, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = shirt;
+    roundRect(-9 * bulky, -14, 18 * bulky, 20, 6); ctx.fill();
+    ctx.fillStyle = pant;
+    roundRect(-8 * bulky, 2, 16 * bulky, 8, 3); ctx.fill();
+
+    if (look.tie) {
+      ctx.fillStyle = look.tie;
+      ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(3, 5); ctx.lineTo(0, 7); ctx.lineTo(-2, 5); ctx.fill();
+    }
+    if (look.apron) {
+      ctx.fillStyle = "#f2efe6";
+      roundRect(-7, -3, 14, 14, 2); ctx.fill();
+    }
+
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(0.6, -26, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(-2.4, -17, 5, 4);
+
+    if (!look.hat || look.hat === "cap" || look.hat === "beanie") drawHair(look.hairKind, look.hair);
+
+    ctx.fillStyle = "#ff9aa8";
+    const prevA = ctx.globalAlpha;
+    ctx.globalAlpha = prevA * 0.55;
+    ctx.beginPath(); ctx.ellipse(-7.2, -22, 3.2, 1.8, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(7.8, -22, 3.4, 1.8, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = prevA;
+
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.ellipse(-3.8, -26.4, 3.3, 3.6, -0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(4.6, -25.6, 2.4, face === "ditzy" ? 1.6 : 3.2, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = look.eye || "#1a0a08";
+    if (face === "ditzy") {
+      ctx.beginPath(); ctx.arc(-3.2, -25.6, 1.35, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(4.8, -25.4, 1.5, 0.7, 0.2, 0, Math.PI * 2); ctx.fill();
+    } else if (face === "panic") {
+      ctx.beginPath(); ctx.arc(-3.4, -26.6, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(5.2, -26.8, 1.5, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(-2.6, -26.8, 1.45, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(5.4, -26.2, 1.2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(-2.6, -27.4, 0.7, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = "#f4d4a8";
+    ctx.save();
+    ctx.translate(-7.5, -20.5);
+    ctx.rotate(-0.5);
+    ctx.fillRect(-3.2, -1.2, 7.2, 2.6);
+    ctx.strokeStyle = "#d44d6a";
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(-1.6, -1.2); ctx.lineTo(-1.6, 1.4); ctx.moveTo(1.2, -1.2); ctx.lineTo(1.2, 1.4); ctx.stroke();
+    ctx.restore();
+
+    ctx.strokeStyle = look.hair;
+    ctx.lineWidth = 1.7;
+    ctx.lineCap = "round";
+    if (face === "mischief") {
+      ctx.beginPath(); ctx.moveTo(-6.5, -31.5); ctx.lineTo(-1.2, -29.6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(7.4, -32.4); ctx.lineTo(3.2, -29.2); ctx.stroke();
+    } else if (face === "panic") {
+      ctx.beginPath(); ctx.moveTo(-6.8, -31.8); ctx.lineTo(-1.5, -30.8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(7.2, -31.8); ctx.lineTo(2.2, -30.8); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(-6.4, -30.2); ctx.lineTo(-1.4, -31.4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(6.8, -29.6); ctx.lineTo(2.4, -31); ctx.stroke();
+    }
+
+    if (face === "mischief") {
+      ctx.fillStyle = "#4a1020";
+      ctx.beginPath(); ctx.ellipse(1.4, -18.2, 4.2, 3.1, 0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff8ee";
+      ctx.fillRect(-0.2, -19.6, 2.4, 2.1);
+      ctx.fillStyle = "#ff6b8a";
+      ctx.beginPath(); ctx.ellipse(3.4, -16.2, 2.3, 2.6, 0.4, 0, Math.PI * 2); ctx.fill();
+    } else if (face === "panic") {
+      ctx.fillStyle = "#4a2030";
+      ctx.beginPath(); ctx.ellipse(0.4, -17.6, 2.6, 3.2, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.strokeStyle = "#8a5040";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(0.6, -18.4, 2.4, 0.15, Math.PI - 0.4); ctx.stroke();
+    }
+
+    if (face === "ditzy" || face === "panic") {
+      ctx.fillStyle = "#9ad8ff";
+      ctx.beginPath(); ctx.ellipse(11, -34, 2.1, 3.6, 0.35, 0, Math.PI * 2); ctx.fill();
+    }
+
+    if (look.glasses) {
+      ctx.strokeStyle = "#2a2030";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.arc(-3.6, -26, 3.6, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(4.4, -25.6, 3.2, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -25.8); ctx.lineTo(1.2, -25.8); ctx.stroke();
+    }
+    if (look.band) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(-10, -34, 20, 3.4);
+    }
+    if (look.horns) {
+      ctx.fillStyle = "#4a1020";
+      ctx.beginPath(); ctx.moveTo(-8, -34); ctx.lineTo(-16, -48); ctx.lineTo(-2, -36); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(7, -34); ctx.quadraticCurveTo(18, -42, 10, -28); ctx.lineTo(3, -34); ctx.fill();
+    }
+    if (look.hat === "cap") {
+      ctx.fillStyle = mixHex(shirt, -20);
+      ctx.beginPath(); ctx.ellipse(1, -36, 10.4, 4, 0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(2, -37, 12, 2.6);
+    } else if (look.hat === "helmet") {
+      ctx.fillStyle = "#d8dce0";
+      ctx.beginPath(); ctx.ellipse(0, -34, 11, 8, 0.08, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#2a2a30";
+      ctx.fillRect(-9, -28, 18, 3);
+    } else if (look.hat === "beanie") {
+      ctx.fillStyle = "#1a1a1a";
+      ctx.beginPath(); ctx.ellipse(1, -36, 10.4, 6.2, 0.12, 0, Math.PI * 2); ctx.fill();
+    } else if (look.hat === "officer") {
+      ctx.fillStyle = "#1a3348";
+      ctx.save(); ctx.rotate(-0.12); ctx.fillRect(-9, -40, 18, 6); ctx.restore();
+      ctx.fillStyle = "#ffd166";
+      ctx.fillRect(-2, -37, 4, 3);
+    }
+
+    if (look.hold === "phone") {
+      ctx.save(); ctx.rotate(0.4);
+      ctx.fillStyle = "#1a1a1a";
+      roundRect(12, -12, 5, 9, 1); ctx.fill();
+      ctx.fillStyle = "#7ec8ff";
+      ctx.fillRect(13, -10, 3, 5);
+      ctx.restore();
+    } else if (look.hold === "laptop") {
+      ctx.save(); ctx.rotate(-0.35);
+      ctx.fillStyle = "#3a3a44";
+      roundRect(8, -2, 12, 8, 1); ctx.fill();
+      ctx.fillStyle = "#9ad0ff";
+      ctx.fillRect(9, -1, 10, 5);
+      ctx.restore();
+    } else if (look.hold === "paper") {
+      ctx.save(); ctx.rotate(0.5);
+      ctx.fillStyle = "#f4f0e4";
+      ctx.fillRect(9, -10, 8, 10);
+      ctx.restore();
+    } else if (look.hold === "box") {
+      ctx.save(); ctx.rotate(0.25);
+      ctx.fillStyle = "#c9a06a";
+      roundRect(8, -2, 10, 8, 1); ctx.fill();
+      ctx.restore();
+    } else if (look.hold === "case") {
+      ctx.fillStyle = "#2a2430";
+      roundRect(8, 5, 8, 10, 1); ctx.fill();
+    } else if (look.claw) {
+      ctx.strokeStyle = "#ffd166";
+      ctx.lineWidth = 1.6 + atkSwing * 1.2;
+      const clawReach = 7 + atkSwing * 10;
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + clawReach, handY - 4 - atkSwing * 6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + clawReach + 1, handY + 1 - atkSwing * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(handX + clawReach - 1, handY + 5 + atkSwing * 2); ctx.stroke();
+      if (atkSwing > 0.35 && (atkKind === "scratch" || atkKind === "overtime" || atkKind === "gimbap")) {
+        ctx.strokeStyle = "rgba(255, 77, 109," + (0.35 + atkSwing * 0.45) + ")";
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(handX + 4, handY - 2, 10 + atkSwing * 14, -1.1, 0.55);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255, 209, 102," + (0.25 + atkSwing * 0.4) + ")";
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(handX + 2, handY, 7 + atkSwing * 10, -0.9, 0.7);
+        ctx.stroke();
+      }
+    }
+
+    if (look.dog) {
+      ctx.save(); ctx.rotate(-0.2);
+      ctx.fillStyle = "#c9a06a";
+      ctx.beginPath(); ctx.ellipse(18, 15, 7, 5, 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(24, 12, 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#6a4a30";
+      ctx.beginPath(); ctx.ellipse(22, 9, 1.6, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#d8c8a0";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(8, 8); ctx.quadraticCurveTo(12, 18, 16, 15); ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  function drawDevil(p) {
+    const moving = Math.hypot(p.vx, p.vy) > 12;
+    const atkProg = (p.atkT > 0 && p.atkDur > 0) ? (1 - p.atkT / p.atkDur) : 0;
+    const atkSwing = atkProg > 0 ? Math.sin(atkProg * Math.PI) : 0;
+    drawPerson(p.x, p.y, p.facing, (p.walkT || 0), {
+      id: "devil",
+      skin: "#c45c6a",
+      shirt: "#4a1024",
+      pants: "#2a0814",
+      hair: "#1a0508",
+      hairKind: "spiky",
+      eye: "#ffd166",
+      devil: true,
+      horns: true,
+      tail: "#6a142c",
+      wings: true,
+      claw: true,
+      moving: moving && atkSwing < 0.2,
+      trip: moving && atkSwing < 0.15 && Math.abs(Math.sin((p.walkT || 0) * 0.37)) > 0.97,
+      atkSwing: atkSwing,
+      atkKind: p.atkKind
+    });
+    if (atkSwing > 0.25) {
+      const fx = p.x + p.facing * (18 + atkSwing * 16);
+      const fy = p.y - 8 - (p.atkKind === "gimbap" || p.atkKind === "overtime" ? atkSwing * 10 : atkSwing * 4);
+      ctx.save();
+      ctx.globalAlpha = 0.35 + atkSwing * 0.45;
+      if (p.atkKind === "scratch") {
+        ctx.strokeStyle = "#ff4d6d";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(fx, fy, 12 + atkSwing * 10, p.facing > 0 ? -0.9 : Math.PI - 0.9, p.facing > 0 ? 0.8 : Math.PI + 0.8);
+        ctx.stroke();
+        ctx.strokeStyle = "#ffd166";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(fx - p.facing * 4, fy + 4, 8 + atkSwing * 8, p.facing > 0 ? -0.7 : Math.PI - 0.7, p.facing > 0 ? 0.6 : Math.PI + 0.6);
+        ctx.stroke();
+      } else if (p.atkKind === "sneeze") {
+        ctx.fillStyle = "rgba(255,138,61,0.55)";
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.arc(fx + p.facing * (6 + i * 8), fy - 4 + i * 3, 4 + i, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (p.atkKind === "mock" || p.atkKind === "chat" || p.atkKind === "complaint") {
+        ctx.fillStyle = p.atkKind === "complaint" ? "#ffd166" : "#ff9ecd";
+        ctx.beginPath();
+        ctx.arc(fx, fy - 10, 5 + atkSwing * 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.atkKind === "overtime" || p.atkKind === "gimbap") {
+        ctx.strokeStyle = p.atkKind === "gimbap" ? "#7cb342" : "#b388ff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 20 + atkSwing * 28, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (p.atkKind === "peel") {
+        ctx.fillStyle = "#ffe066";
+        ctx.beginPath();
+        ctx.ellipse(fx - p.facing * 4, fy + 14, 8, 3, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    ctx.fillStyle = "#2a1520";
+    ctx.fillRect(p.x - 18, p.y - 48, 36, 5);
+    ctx.fillStyle = p.hp / p.maxHp < 0.34 ? "#ff4d4d" : (p.hp / p.maxHp < 0.62 ? "#ffb347" : "#49d17c");
+    ctx.fillRect(p.x - 18, p.y - 48, 36 * Math.max(0, p.hp / p.maxHp), 5);
+    ctx.fillStyle = "#fff4e8";
+    ctx.font = "bold 10px Malgun Gothic";
+    ctx.textAlign = "center";
+    ctx.fillText(Math.max(0, Math.ceil(p.hp)) + "/" + Math.ceil(p.maxHp), p.x, p.y - 52);
+    ctx.strokeStyle = "rgba(179,136,255,0.18)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, magnetR(), 0, Math.PI * 2); ctx.stroke();
+    if (state.event && state.event.id === "cctv") {
+      ctx.strokeStyle = "rgba(255,80,80," + (0.35 + Math.sin(state.time * 9) * 0.2) + ")";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(p.x - 22, p.y - 48, 44, 70);
+    }
+  }
+
+  function drawEnemy(e) {
+    ctx.save();
+    if (e.hitFlash > 0) ctx.globalAlpha = 0.7;
+    if (e.rival) {
+      drawPerson(e.x, e.y, e.facing || 1, e.walkT || 0, {
+        id: e.type.id,
+        skin: e.type.skin,
+        shirt: e.type.shirt,
+        pants: e.type.pants,
+        hair: e.type.hair,
+        hairKind: "messy",
+        eye: e.type.eye,
+        devil: true,
+        horns: true,
+        tail: e.type.tail,
+        wings: true,
+        claw: true,
+        moving: true,
+        alerted: true,
+        trip: (e.tripT || 0) > 0
+      });
+    } else {
+      const base = LOOKS[e.type.id] || LOOKS.alba;
+      drawPerson(e.x, e.y, e.facing || 1, e.walkT || 0, Object.assign({}, base, {
+        id: e.type.id,
+        moving: true,
+        alerted: !!e.alerted,
+        trip: (e.tripT || 0) > 0,
+        giant: !!e.boss || !!base.giant,
+        bulky: !!e.elite || !!base.bulky
+      }));
+    }
+    if (e.boss) {
+      ctx.strokeStyle = "rgba(196,30,58," + (0.45 + Math.sin(state.time * 7) * 0.2) + ")";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 36 + Math.sin(state.time * 5) * 4, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (e.elite) {
+      ctx.strokeStyle = "rgba(255,120,70,0.42)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 28, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (e.type.id === "gold") {
+      ctx.fillStyle = "rgba(255,209,102,0.85)";
+      ctx.beginPath(); ctx.arc(e.x + Math.sin(state.time * 9) * 10, e.y - 34, 2.4, 0, Math.PI * 2); ctx.fill();
+    }
+    const label = (e.boss ? "[보스] " : e.elite ? "[정예] " : "") + e.type.name;
+    ctx.fillStyle = "#fff4e8";
+    ctx.font = (e.boss ? "bold 14px" : "bold 12px") + " Malgun Gothic";
+    ctx.textAlign = "center";
+    ctx.strokeStyle = "#1a0a10";
+    ctx.lineWidth = 3;
+    ctx.strokeText(label, e.x, e.y + (e.boss ? 42 : 34));
+    ctx.fillStyle = e.rival ? "#ffd166" : (e.boss ? "#ff6b6b" : (e.elite ? "#ffb347" : "#fff4e8"));
+    ctx.fillText(label, e.x, e.y + (e.boss ? 42 : 34));
+    const barW = e.boss ? 56 : (e.elite || e.rival ? 44 : 32);
+    ctx.fillStyle = "#2a1520";
+    ctx.fillRect(e.x - barW / 2, e.y - (e.boss ? 52 : 42), barW, e.boss ? 6 : 4);
+    ctx.fillStyle = e.rival || e.boss ? "#ff6b6b" : (e.elite ? "#ffb347" : "#49d17c");
+    ctx.fillRect(e.x - barW / 2, e.y - (e.boss ? 52 : 42), barW * Math.max(0, e.hp / e.maxHp), e.boss ? 6 : 4);
+    if (e.mock > 0) {
+      ctx.fillStyle = "#ff9ecd";
+      ctx.fillText("조롱중", e.x, e.y - 50);
+    }
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.save();
+    if (state.shake > 0) {
+      ctx.translate((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
+    }
+    drawBg();
+    if (state.player && !state.inDuel && inStore(state.player)) {
+      ctx.strokeStyle = "rgba(124,255,178," + (0.4 + Math.sin(state.time * 6) * 0.15) + ")";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(428, 358, 214, 144);
+    }
+    if (state.player && state.mode !== "title") {
+      for (const it of state.items) {
+        ctx.fillStyle = it.type.color;
+        ctx.beginPath(); ctx.arc(it.x, it.y, 7 + Math.sin(state.time * 6 + it.x) * 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.stroke();
+      }
+      for (const peel of (state.peels || [])) {
+        ctx.save();
+        ctx.translate(peel.x, peel.y);
+        ctx.rotate(0.5 + Math.sin(state.time * 3 + peel.x) * 0.08);
+        ctx.fillStyle = "#ffe066";
+        ctx.beginPath(); ctx.ellipse(0, 0, 12, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#6a5010";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(-8, -1); ctx.quadraticCurveTo(0, -4, 8, 1); ctx.stroke();
+        ctx.fillStyle = "#3a2810";
+        ctx.beginPath(); ctx.arc(-10, -1, 1.6, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      for (const e of state.enemies) drawEnemy(e);
+      if (state.intern) {
+        const it = state.intern;
+        const iSwing = (it.atkAnim || 0) > 0 ? Math.sin((1 - it.atkAnim / 0.2) * Math.PI) : 0;
+        ctx.save();
+        ctx.translate(it.x, it.y);
+        ctx.scale(0.78, 0.78);
+        ctx.translate(-it.x, -it.y);
+        drawPerson(it.x, it.y, it.facing || 1, it.walkT || 0, {
+          id: "intern",
+          skin: "#d07080",
+          shirt: "#3a4868",
+          pants: "#1a2438",
+          hair: "#1a1020",
+          hairKind: "messy",
+          eye: "#c8e4ff",
+          devil: true,
+          horns: true,
+          tail: "#4a2848",
+          wings: true,
+          claw: true,
+          moving: iSwing < 0.2,
+          hat: "cap",
+          atkSwing: iSwing,
+          atkKind: iSwing > 0 ? "scratch" : null
+        });
+        ctx.restore();
+        ctx.fillStyle = "#c8e8ff";
+        ctx.font = "bold 11px Malgun Gothic";
+        ctx.textAlign = "center";
+        ctx.strokeStyle = "#102038";
+        ctx.lineWidth = 3;
+        ctx.strokeText(it.name || "수습", it.x, it.y + 30);
+        ctx.fillText(it.name || "수습", it.x, it.y + 30);
+      }
+      for (const pr of state.projectiles) {
+        if (pr.kind === "chat") {
+          ctx.fillStyle = "#ffe08a";
+          roundRect(pr.x - 16, pr.y - 10, 32, 18, 5); ctx.fill();
+          ctx.fillStyle = "#3a2030";
+          ctx.font = "bold 10px Malgun Gothic";
+          ctx.textAlign = "center";
+          ctx.fillText("카톡", pr.x, pr.y + 3);
+        } else {
+          ctx.fillStyle = "#ff8a3d";
+          ctx.beginPath(); ctx.arc(pr.x, pr.y, pr.r, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      for (const h of state.hostile) {
+        ctx.save();
+        ctx.translate(h.x, h.y);
+        ctx.rotate(state.time * 8);
+        ctx.fillStyle = h.color;
+        ctx.fillRect(-h.r, -h.r * 0.7, h.r * 2, h.r * 1.4);
+        ctx.strokeStyle = "#fff8ee";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-h.r, -h.r * 0.7, h.r * 2, h.r * 1.4);
+        ctx.restore();
+      }
+      drawDevil(state.player);
+      ctx.textAlign = "center";
+      ctx.font = "12px Malgun Gothic";
+      for (const b of state.bubbles) {
+        ctx.globalAlpha = Math.min(1, b.t);
+        ctx.fillStyle = "#fff8ee";
+        const w = ctx.measureText(b.text).width + 14;
+        roundRect(b.x - w / 2, b.y - 16, w, 20, 6); ctx.fill();
+        ctx.fillStyle = "#3a2030";
+        ctx.fillText(b.text, b.x, b.y - 2);
+        ctx.globalAlpha = 1;
+      }
+      ctx.font = "bold 13px Malgun Gothic";
+      for (const f of state.floats) {
+        ctx.globalAlpha = Math.min(1, f.t * 1.4);
+        ctx.fillStyle = f.color;
+        ctx.fillText(f.text, f.x, f.y);
+        ctx.globalAlpha = 1;
+      }
+      for (const q of state.particles) {
+        ctx.globalAlpha = Math.max(0, q.t * 2);
+        ctx.fillStyle = q.color;
+        ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      if (state.event && state.event.id === "blackout") {
+        ctx.fillStyle = "rgba(4,0,10,0.45)";
+        ctx.fillRect(0, 0, W, H);
+      }
+      if (state.event && state.event.id === "cctv") {
+        ctx.fillStyle = "rgba(80,0,0,0.08)";
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "#ff6b6b";
+        ctx.font = "bold 12px Malgun Gothic";
+        ctx.textAlign = "right";
+        ctx.fillText("REC ● CCTV", W - 18, 28);
+      }
+      if (state.event && state.event.id === "kakao") {
+        ctx.fillStyle = "rgba(255,224,138,0.08)";
+        ctx.fillRect(0, 0, W, H);
+      }
+      if (state.fever > 0) {
+        ctx.strokeStyle = "rgba(255,209,102," + (0.25 + Math.sin(state.time * 10) * 0.12) + ")";
+        ctx.lineWidth = 8;
+        ctx.strokeRect(8, 8, W - 16, H - 16);
+      }
+      ctx.fillStyle = "rgba(255,210,80,0.35)";
+      ctx.font = "11px Malgun Gothic";
+      ctx.textAlign = "center";
+      ctx.fillText("클릭: 편의점 회복 / 나무", 535, 352);
+    }
+    if (state.flash > 0) {
+      ctx.fillStyle = "rgba(255, 210, 80," + (state.flash * 0.45) + ")";
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.restore();
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  document.getElementById("choiceA").onclick = () => resolveChoice("a");
+  document.getElementById("choiceB").onclick = () => resolveChoice("b");
+  document.getElementById("startBtn").onclick = () => {
+    localStorage.removeItem(SAVE_KEY);
+    startGame(false);
+  };
+  document.getElementById("continueBtn").onclick = () => startGame(true);
+  document.getElementById("resumeBtn").onclick = () => pause(false);
+  document.getElementById("toTitleBtn").onclick = () => {
+    save();
+    state.mode = "title";
+    document.getElementById("pauseScreen").classList.add("hidden");
+    document.getElementById("hud").classList.add("hidden");
+    document.getElementById("choiceHud").classList.remove("show");
+    state.choice = null;
+    state.choiceT = 0;
+    document.getElementById("titleScreen").classList.remove("hidden");
+    refreshContinue();
+  };
+  document.getElementById("pauseBtn").onclick = () => pause(true);
+  document.getElementById("huntBtn").onclick = () => toggleHunt();
+  document.getElementById("eatBtn").onclick = () => eatCandy(false);
+  document.getElementById("resetBtn").onclick = () => {
+    if (confirm("새 게임으로 시작할까요? 저장이 덮어씌워집니다.")) {
+      localStorage.removeItem(SAVE_KEY);
+      document.getElementById("titleScreen").classList.remove("hidden");
+      document.getElementById("hud").classList.add("hidden");
+      document.getElementById("choiceHud").classList.remove("show");
+      state.choice = null;
+      state.choiceT = 0;
+      state.mode = "title";
+      refreshContinue();
+    }
+  };
+  document.getElementById("reviveBtn").onclick = () => {
+    if (state.wipeOnRevive) {
+      localStorage.removeItem(SAVE_KEY);
+      document.getElementById("deadScreen").classList.add("hidden");
+      startGame(false);
+      toast("재입사. 명함은 다시 햇병아리입니다.");
+      return;
+    }
+    const p = state.player;
+    p.hp = p.maxHp * 0.55;
+    p.lastHit = 99;
+    p.x = W / 2; p.y = H / 2;
+    addFame(-Math.min(20, Math.floor(p.fame * 0.02)));
+    document.getElementById("deadScreen").classList.add("hidden");
+    state.mode = "play";
+    toast("복직 완료. 체력 55%. 사탕을 챙기세요.");
+  };
+
+  function refreshContinue() {
+    const s = loadSave();
+    const btn = document.getElementById("continueBtn");
+    if (s) {
+      btn.classList.remove("hidden");
+      document.getElementById("nameInput").value = s.name || "김악마";
+    } else btn.classList.add("hidden");
+    renderBestBoard();
+  }
+  refreshContinue();
+})();
+  </script>
+</body>
+</html>
